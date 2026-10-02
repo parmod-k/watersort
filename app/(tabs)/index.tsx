@@ -19,6 +19,8 @@ import Tube, { TubeColor } from '../../components/game/Tube';
 import { colors, fontFamily, liquidGradients, spacing } from '../../theme/tokens';
 
 const CAPACITY = 4;
+const TUBE_W = 56;
+const TUBE_H = 176;
 
 const initialTubes: TubeColor[][] = [
   ['purple', 'yellow', 'coral', 'cyan'],
@@ -43,8 +45,9 @@ export default function PlayScreen() {
   const [toast, setToast] = useState<{ text: string; icon: keyof typeof MaterialIcons.glyphMap } | null>(null);
 
   const isAnimating = useRef(false);
-  const tubeRefs = useRef<Array<any>>([]);
-  const stageRef = useRef<View>(null);
+  // Resting (untransformed) layouts, used to aim the pour precisely.
+  const tubeLayouts = useRef<Array<{ x: number; y: number } | undefined>>([]);
+  const rowLayouts = useRef<Array<{ x: number; y: number } | undefined>>([]);
   const anim = useRef(tubes.map(() => new Animated.ValueXY({ x: 0, y: 0 }))).current;
   const rotate = useRef(tubes.map(() => new Animated.Value(0))).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -54,7 +57,9 @@ export default function PlayScreen() {
   const growAnim = useRef(new Animated.Value(0)).current;
   const streamAnim = useRef(new Animated.Value(0)).current;
   const [pourFx, setPourFx] = useState<{ sourceId: number; targetId: number; color: TubeColor } | null>(null);
-  const [streamPos, setStreamPos] = useState<{ x: number; y: number } | null>(null);
+  const [streamPos, setStreamPos] = useState<{ x: number; y: number; height: number } | null>(null);
+  // The tube currently tilting, and which lip it pivots on (1 = right lip, -1 = left lip).
+  const [tilt, setTilt] = useState<{ id: number; dir: 1 | -1 } | null>(null);
 
   const completedCount = useMemo(() => tubes.filter(isTubeComplete).length, [tubes]);
 
@@ -106,117 +111,154 @@ export default function PlayScreen() {
     Haptics.selectionAsync().catch(() => {});
   }
 
+  /** Stage-relative top-left of a tube at rest, or null if not laid out yet. */
+  function restPosition(id: number) {
+    const tube = tubeLayouts.current[id];
+    const row = rowLayouts.current[Math.floor(id / 3)];
+    if (!tube || !row) return null;
+    return { x: row.x + tube.x, y: row.y + tube.y };
+  }
+
   function executePour(sourceId: number, targetId: number, recordHistory = true) {
     if (isAnimating.current) return;
     const sourceStack = tubes[sourceId];
-    if (!sourceStack || sourceStack.length === 0) {
+    const src = restPosition(sourceId);
+    const tgt = restPosition(targetId);
+    if (!sourceStack || sourceStack.length === 0 || !src || !tgt) {
       deselectAll();
       return;
     }
     isAnimating.current = true;
     const pouredColor = sourceStack[sourceStack.length - 1];
 
-    const sourceNode = tubeRefs.current[sourceId];
-    const targetNode = tubeRefs.current[targetId];
+    // Pour toward the target; for a vertically stacked pair, keep the tube body over the board's middle.
+    const dir: 1 | -1 = tgt.x > src.x ? 1 : tgt.x < src.x ? -1 : sourceId % 3 === 0 ? -1 : 1;
 
-    const finishWithoutMeasure = () => runPourAnimation(sourceId, targetId, pouredColor, 90, 0, recordHistory);
+    // A fuller tube needs less tilt before liquid reaches the mouth; it tips further while pouring.
+    const startAngle = Math.min(80, 48 + (CAPACITY - sourceStack.length) * 10);
+    const endAngle = Math.min(95, startAngle + 14);
 
-    if (sourceNode && targetNode && (sourceNode as any).measureInWindow && (targetNode as any).measureInWindow) {
-      (sourceNode as any).measureInWindow((sx: number, sy: number) => {
-        (targetNode as any).measureInWindow((tx: number, ty: number) => {
-          const angle = tx < sx ? -55 : 55;
-          const moveX = (tx - sx) * 0.7;
-          runPourAnimation(sourceId, targetId, pouredColor, moveX, angle, recordHistory);
-        });
-      });
-    } else {
-      finishWithoutMeasure();
-    }
+    // The tube pivots on its pouring lip, so the lip is a fixed point: park it just above the
+    // centre of the target's mouth, high enough that the tilted wall clears the target's rim.
+    const gap = TUBE_W / 2 / Math.tan((startAngle * Math.PI) / 180) + 16;
+    const lipRestX = src.x + (dir > 0 ? TUBE_W : 0);
+    const lipX = tgt.x + TUBE_W / 2;
+    const lipY = tgt.y - gap;
+
+    // The stream runs from the lip down to the target's current liquid surface.
+    const surfaceY = tgt.y + 3 + (CAPACITY - tubes[targetId].length) * (TUBE_H / CAPACITY);
+
+    setTilt({ id: sourceId, dir });
+    runPourAnimation({
+      sourceId,
+      targetId,
+      pouredColor,
+      moveX: lipX - lipRestX,
+      moveY: lipY - src.y,
+      startAngle: dir * startAngle,
+      endAngle: dir * endAngle,
+      stream: { x: lipX, y: lipY, height: surfaceY - lipY },
+      recordHistory,
+    });
   }
 
-  function runPourAnimation(
-    sourceId: number,
-    targetId: number,
-    pouredColor: TubeColor,
-    moveX: number,
-    angle: number,
-    recordHistory: boolean,
-  ) {
-    // 1. Tip the source tube toward the target, pivoting near its rim.
+  function runPourAnimation({
+    sourceId,
+    targetId,
+    pouredColor,
+    moveX,
+    moveY,
+    startAngle,
+    endAngle,
+    stream,
+    recordHistory,
+  }: {
+    sourceId: number;
+    targetId: number;
+    pouredColor: TubeColor;
+    moveX: number;
+    moveY: number;
+    startAngle: number;
+    endAngle: number;
+    stream: { x: number; y: number; height: number };
+    recordHistory: boolean;
+  }) {
+    // 1. Carry the source over the target's mouth and tip it. The tilt starts a beat later so the
+    //    lip pivot (applied via state) is in place before any rotation happens.
     Animated.parallel([
       Animated.timing(anim[sourceId], {
-        toValue: { x: moveX, y: -70 },
-        duration: 420,
-        easing: Easing.out(Easing.back(1.05)),
+        toValue: { x: moveX, y: moveY },
+        duration: 440,
+        easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.timing(rotate[sourceId], {
-        toValue: angle,
-        duration: 420,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
+      Animated.sequence([
+        Animated.delay(120),
+        Animated.timing(rotate[sourceId], {
+          toValue: startAngle,
+          duration: 380,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start(() => {
-      // 2. Locate the target's rim (relative to the stage) so the stream lands on it.
-      const targetNode = tubeRefs.current[targetId];
-      const stageNode = stageRef.current;
-      if (targetNode && stageNode && typeof targetNode.measureLayout === 'function') {
-        targetNode.measureLayout(
-          stageNode,
-          (x: number, y: number, w: number) => setStreamPos({ x: x + w / 2, y }),
-          () => setStreamPos(null),
-        );
-      } else {
-        setStreamPos(null);
-      }
-
       shrinkAnim.setValue(0);
       growAnim.setValue(0);
       streamAnim.setValue(0);
+      setStreamPos(stream);
       setPourFx({ sourceId, targetId, color: pouredColor });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
-      // 3. Drain the source's top layer while the target fills, with a visible stream between.
+      // 2. The stream falls from the lip; the source drains and tips further while the target fills.
       Animated.parallel([
-        Animated.timing(shrinkAnim, { toValue: 1, duration: 360, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-        Animated.timing(growAnim, { toValue: 1, duration: 360, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(streamAnim, { toValue: 1, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.timing(rotate[sourceId], {
+          toValue: endAngle,
+          duration: 520,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shrinkAnim, { toValue: 1, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
         Animated.sequence([
-          Animated.timing(streamAnim, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(streamAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
-          Animated.timing(streamAnim, { toValue: 0, duration: 120, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+          Animated.delay(120),
+          Animated.timing(growAnim, { toValue: 1, duration: 420, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
         ]),
       ]).start(() => {
-        setTubes((prev) => {
-          const next = prev.map((s) => [...s]);
-          next[sourceId].pop();
-          next[targetId].push(pouredColor);
-          return next;
-        });
-        if (recordHistory) {
-          setHistory((h) => [...h, { source: sourceId, target: targetId, color: pouredColor }]);
-        }
-        setMoves((m) => m + 1);
-        showToast(`Poured ${pouredColor}!`, 'opacity');
-        setPourFx(null);
-        setStreamPos(null);
+        // 3. The stream's tail drops into the target.
+        Animated.timing(streamAnim, { toValue: 2, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+          setTubes((prev) => {
+            const next = prev.map((s) => [...s]);
+            next[sourceId].pop();
+            next[targetId].push(pouredColor);
+            return next;
+          });
+          if (recordHistory) {
+            setHistory((h) => [...h, { source: sourceId, target: targetId, color: pouredColor }]);
+          }
+          setMoves((m) => m + 1);
+          showToast(`Poured ${pouredColor}!`, 'opacity');
+          setPourFx(null);
+          setStreamPos(null);
 
-        // 4. Return the source tube to rest.
-        Animated.parallel([
-          Animated.timing(anim[sourceId], {
-            toValue: { x: 0, y: 0 },
-            duration: 320,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotate[sourceId], {
-            toValue: 0,
-            duration: 320,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          isAnimating.current = false;
-          setSelected(null);
+          // 4. Straighten up and fly back home.
+          Animated.parallel([
+            Animated.timing(anim[sourceId], {
+              toValue: { x: 0, y: 0 },
+              duration: 380,
+              easing: Easing.inOut(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(rotate[sourceId], {
+              toValue: 0,
+              duration: 300,
+              easing: Easing.out(Easing.quad),
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            setTilt(null);
+            isAnimating.current = false;
+            setSelected(null);
+          });
         });
       });
     });
@@ -357,35 +399,46 @@ export default function PlayScreen() {
           </View>
         </GlassPill>
 
-        <View style={styles.stage} ref={stageRef} collapsable={false}>
+        <View style={styles.stage}>
           {rows.map((row, rowIdx) => (
-            <View key={rowIdx} style={styles.tubeRow}>
+            <View
+              key={rowIdx}
+              style={[styles.tubeRow, tilt && Math.floor(tilt.id / 3) === rowIdx && styles.raised]}
+              onLayout={(e) => {
+                const { x, y } = e.nativeEvent.layout;
+                rowLayouts.current[rowIdx] = { x, y };
+              }}
+            >
               {row.map((stack, colIdx) => {
                 const id = rowIdx * 3 + colIdx;
                 const complete = isTubeComplete(stack);
                 const isPourSource = pourFx?.sourceId === id;
                 const isPourTarget = pourFx?.targetId === id;
+                const isTilting = tilt?.id === id;
                 return (
                   <Animated.View
                     key={id}
-                    ref={(r) => {
-                      tubeRefs.current[id] = r;
+                    onLayout={(e) => {
+                      const { x, y } = e.nativeEvent.layout;
+                      tubeLayouts.current[id] = { x, y };
                     }}
-                    collapsable={false}
-                    style={{
-                      transform: [
-                        { translateX: anim[id].x },
-                        { translateY: anim[id].y },
-                        {
-                          rotate: rotate[id].interpolate({
-                            inputRange: [-90, 0, 90],
-                            outputRange: ['-90deg', '0deg', '90deg'],
-                          }),
-                        },
-                      ],
-                      // Pivot near the rim so the tube reads as tipping, not spinning in place.
-                      transformOrigin: '50% 12%' as any,
-                    }}
+                    style={[
+                      isTilting && styles.raised,
+                      {
+                        transform: [
+                          { translateX: anim[id].x },
+                          { translateY: anim[id].y },
+                          {
+                            rotate: rotate[id].interpolate({
+                              inputRange: [-90, 0, 90],
+                              outputRange: ['-90deg', '0deg', '90deg'],
+                            }),
+                          },
+                        ],
+                        // Pivot on the pouring lip so it stays fixed over the target's mouth while tipping.
+                        transformOrigin: (isTilting ? (tilt.dir > 0 ? '100% 0%' : '0% 0%') : '50% 0%') as any,
+                      },
+                    ]}
                   >
                     <Pressable onPress={() => handleTubePress(id)} hitSlop={8}>
                       {complete && (
@@ -395,6 +448,8 @@ export default function PlayScreen() {
                       )}
                       <Tube
                         colorsStack={stack}
+                        width={TUBE_W}
+                        height={TUBE_H}
                         selected={selected === id}
                         complete={complete}
                         shrinkAnim={isPourSource ? shrinkAnim : undefined}
@@ -409,26 +464,34 @@ export default function PlayScreen() {
           ))}
 
           {pourFx && streamPos && (
-            <Animated.View
+            <View
               pointerEvents="none"
-              style={[
-                styles.streamBeam,
-                {
-                  left: streamPos.x - 4,
-                  top: streamPos.y - 50,
-                  opacity: streamAnim,
-                  transform: [{ scaleY: streamAnim }],
-                  transformOrigin: 'top' as any,
-                },
-              ]}
+              style={[styles.streamBeam, { left: streamPos.x - 3, top: streamPos.y, height: streamPos.height }]}
             >
-              <LinearGradient
-                colors={liquidGradients[pourFx.color] ?? liquidGradients.cyan}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={styles.streamGradient}
-              />
-            </Animated.View>
+              {/* 0 -> 1: the column falls from the lip; 1 -> 2: its tail drops into the target. */}
+              <Animated.View
+                style={[
+                  styles.streamGradient,
+                  {
+                    transform: [
+                      {
+                        translateY: streamAnim.interpolate({
+                          inputRange: [0, 1, 2],
+                          outputRange: [-streamPos.height, 0, streamPos.height],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={liquidGradients[pourFx.color] ?? liquidGradients.cyan}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            </View>
           )}
         </View>
 
@@ -491,13 +554,15 @@ const styles = StyleSheet.create({
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 44, position: 'relative' },
   streamBeam: {
     position: 'absolute',
-    width: 8,
-    height: 50,
-    borderRadius: 4,
+    width: 6,
+    borderRadius: 3,
     overflow: 'hidden',
+    zIndex: 20,
+    elevation: 20,
   },
   streamGradient: { flex: 1, width: '100%' },
   tubeRow: { flexDirection: 'row', gap: 18, justifyContent: 'center' },
+  raised: { zIndex: 10, elevation: 16 },
   sparkleWrap: { position: 'absolute', top: -22, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
   controlsRow: {
     flexDirection: 'row',
