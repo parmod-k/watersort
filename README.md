@@ -24,7 +24,7 @@ npm start
    ```powershell
    npm install
    ```
-
+```npx expo-doctor```
 2. **Generate the native Android project.** Run this the first time, and again whenever you change `app.json`, icons or native packages:
 
    ```powershell
