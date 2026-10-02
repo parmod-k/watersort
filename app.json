@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.watersortapp",
       "adaptiveIcon": {
         "backgroundColor": "#2B170C",
         "foregroundImage": "./assets/android-icon-foreground.png",
