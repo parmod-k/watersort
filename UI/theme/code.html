@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>Bear Bar - Brew Sort Gameplay</title>
+<!-- Tailwind CSS CDN with forms and container queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            casual: ['"Rubik"', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            amberAle: '#f59e0b',
+            rubyBerry: '#ef4444',
+            sapphireBrew: '#3b82f6',
+            emeraldCider: '#10b981',
+            amethystMead: '#a855f7',
+            roseFizz: '#ec4899',
+            tavernWood: '#5b2f15',
+          },
+          boxShadow: {
+            'game-button': '0 6px 0 #3e1f0e, 0 10px 15px -3px rgba(0,0,0,0.5)',
+            'game-button-active': '0 2px 0 #3e1f0e, 0 5px 8px -2px rgba(0,0,0,0.5)',
+            'glass-glow': '0 0 18px rgba(255, 235, 170, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.5)',
+            'selected-bottle': '0 0 24px rgba(253, 224, 71, 0.9), 0 -8px 25px rgba(251, 191, 36, 0.7)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<!-- END: Google Fonts -->
+<!-- BEGIN: Custom CSS Stylesheets -->
+<style data-purpose="base-layout">
+    /* Prevent rubber-banding and pull-to-refresh on iOS mobile */
+    html, body {
+      overscroll-behavior: none;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: 'Rubik', sans-serif;
+    }
+
+    .game-screen-container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      max-width: 480px;
+      margin: 0 auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background-color: #2b170c;
+    }
+  </style>
+<style data-purpose="puzzle-bottle-styling">
+    /* 3D Glass Flask and Bottle Visuals */
+    .puzzle-bottle {
+      position: relative;
+      width: 54px;
+      height: 136px;
+      border-radius: 20px 20px 22px 22px;
+      border: 3px solid rgba(255, 255, 255, 0.75);
+      background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.06) 50%, rgba(200,230,255,0.2) 100%);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35), inset 0 2px 4px rgba(255, 255, 255, 0.8), inset 0 -4px 8px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(2px);
+      transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column-reverse;
+      padding: 3px;
+      overflow: hidden;
+    }
+
+    /* Bottle Lip & Neck Rim */
+    .puzzle-bottle::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 32px;
+      height: 8px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 2px solid rgba(220, 235, 255, 0.9);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+      z-index: 10;
+    }
+
+    /* Front Gloss Reflection Stripe */
+    .bottle-reflection {
+      position: absolute;
+      top: 6px;
+      left: 4px;
+      width: 6px;
+      height: 86%;
+      border-radius: 4px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.15) 80%, transparent 100%);
+      pointer-events: none;
+      z-index: 8;
+    }
+
+    /* Bottle Selected Hover / Up State */
+    .puzzle-bottle.is-selected {
+      transform: translateY(-20px) scale(1.06);
+      box-shadow: 0 0 25px rgba(255, 222, 89, 0.95), 0 16px 20px rgba(0,0,0,0.4);
+      border-color: #fef08a;
+    }
+
+    /* Individual Color Segment inside flask */
+    .liquid-segment {
+      width: 100%;
+      height: 25%;
+      position: relative;
+      transition: height 0.3s ease, transform 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Liquid Surface Gloss Wave */
+    .liquid-segment::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.38);
+      filter: blur(0.5px);
+    }
+
+    /* Liquid bottom rounded fitting bottle */
+    .liquid-segment:first-child {
+      border-bottom-left-radius: 16px;
+      border-bottom-right-radius: 16px;
+    }
+
+    /* Frosted / Ice Locked Flask Style */
+    .frosted-bottle {
+      background: linear-gradient(135deg, rgba(200, 240, 255, 0.7) 0%, rgba(140, 205, 255, 0.4) 100%);
+      border: 3px solid #bbf2f6 !important;
+      box-shadow: 0 0 18px rgba(186, 230, 253, 0.7), inset 0 0 12px rgba(255, 255, 255, 0.9) !important;
+    }
+
+    /* Tavern HUD chunky carved wood badges */
+    .wood-plank-hud {
+      background: linear-gradient(180deg, #7c3f1d 0%, #522710 100%);
+      border: 2px solid #b46d3b;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 3px 6px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+<style data-purpose="hud-and-animations">
+    /* Bouncing and Pouring Effects */
+    @keyframes frothPulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    .bubble-float {
+      animation: frothPulse 2.4s infinite ease-in-out;
+    }
+
+    @keyframes coinSpin {
+      0% { transform: rotateY(0deg); }
+      50% { transform: rotateY(180deg); }
+      100% { transform: rotateY(360deg); }
+    }
+
+    .coin-icon {
+      display: inline-block;
+      animation: coinSpin 5s infinite ease-in-out;
+    }
+
+    /* Pouring Stream Animation */
+    .pouring-stream {
+      position: absolute;
+      width: 6px;
+      height: 48px;
+      border-radius: 3px;
+      z-index: 25;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+  </style>
+</head>
+<body class="bg-stone-900 flex justify-center items-center min-h-screen p-0 m-0">
+<!-- BEGIN: GameScreenRoot -->
+<div class="game-screen-container shadow-2xl relative select-none">
+<!-- BEGIN: BackgroundArt -->
+<!-- Cozy Bear Tavern Scene with 3D Grizzly Bear Bartender -->
+<div class="absolute inset-0 z-0 overflow-hidden pointer-events-none" data-purpose="background-layer">
+<img alt="Casual mobile puzzle game tropical beach tiki bar background with friendly cartoon grizzly bear bartender" class="w-full h-full object-cover object-center filter brightness-[0.98] contrast-[1.03]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBKIj6K49f1XWYBG-ITkhO7DejH5JPFH1VhCZqms4ZS2bqpSPVuoozioGV6-p5RH-oSwNGQhs_r2sSGpiGKSWfQM6TVUAYYudwRU8wUC8Z1Mpr2NsdXAVf8PJXGyXtFAKqakV-K9JNUW0jHbcgBvq513rkcSUqeiN4cjkedYPtcoOxrA28E2P6fFLsZVkBaSBUAdsHOk4n8SCF7cbqj1Pk9--l632lK-LLdig0q2zrdbEszxVT1ooCp"/>
+<!-- Vignette tint gradient for high readability over puzzle board -->
+<div class="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-amber-950/35 pointer-events-none"></div>
+</div>
+<!-- END: BackgroundArt -->
+<!-- BEGIN: TopBarHUD -->
+<!-- Tavern Top Bar & Header with Level, Moves, Coins, and Orders -->
+<header class="relative z-20 px-3 pt-3 flex flex-col gap-2" data-purpose="tavern-game-hud"><!-- Top Row: Settings Gear, Level Badge with Stars, Moves & Coins -->
+<div class="flex items-center justify-between w-full">
+<!-- Settings Button (Vibrant Glossy Royal Purple with Gold Bevel) -->
+<button class="w-11 h-11 rounded-2xl bg-gradient-to-b from-purple-500 via-purple-600 to-purple-800 border-2 border-yellow-300 shadow-[0_4px_0_#4c1d95,0_8px_14px_rgba(0,0,0,0.35)] flex items-center justify-center text-yellow-200 active:translate-y-1 active:shadow-[0_1px_0_#4c1d95] transition-all" title="Settings">
+<svg class="w-6 h-6 filter drop-shadow" fill="currentColor" viewbox="0 0 20 20">
+<path clip-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" fill-rule="evenodd"></path>
+</svg>
+</button>
+<!-- Center: Level 4 Chunky Purple & Gold Plaque with Stars -->
+<div class="px-4 py-1.5 rounded-full bg-gradient-to-b from-purple-500 via-purple-700 to-indigo-900 border-2 border-yellow-300 shadow-[0_4px_0_#3b0764,0_8px_16px_rgba(0,0,0,0.35)] flex items-center gap-2">
+<span class="text-xs text-yellow-300">⭐</span>
+<div class="flex flex-col items-center leading-none">
+<span class="text-[9px] uppercase font-black tracking-widest text-amber-200 drop-shadow">TIKI BAR</span>
+<span class="text-sm font-black text-white drop-shadow">Level 4</span>
+</div>
+<span class="text-xs text-yellow-300">⭐</span>
+</div>
+<!-- Right Side: Moves & Golden Coin Counter -->
+<div class="flex items-center gap-2">
+<!-- Moves counter pill (Sunny Amber/Orange 3D) -->
+<div class="px-2.5 py-1.5 rounded-2xl bg-gradient-to-b from-amber-400 to-amber-600 border-2 border-amber-200 shadow-[0_3px_0_#92400e,0_6px_10px_rgba(0,0,0,0.25)] flex items-center gap-1">
+<span class="text-[11px] font-black text-amber-950 uppercase tracking-tight">Moves</span>
+<span class="text-sm font-black text-white drop-shadow" id="moves-counter">14</span>
+</div>
+<!-- Golden Coin Treasury -->
+<div class="px-2.5 py-1.5 rounded-2xl bg-gradient-to-b from-yellow-300 via-amber-400 to-amber-500 border-2 border-yellow-100 shadow-[0_3px_0_#b45309,0_6px_10px_rgba(0,0,0,0.25)] flex items-center gap-1.5">
+<span class="text-base filter drop-shadow">🪙</span>
+<span class="text-xs font-black text-amber-950 tracking-tight">1,250</span>
+<span class="w-5 h-5 bg-gradient-to-b from-emerald-400 to-emerald-600 text-white font-black rounded-full flex items-center justify-center text-xs border border-white shadow-sm leading-none">+</span>
+</div>
+</div>
+</div>
+<!-- Customer Tavern Drink Orders Banner (Bright Sunny Cream with Gloss & Vibrant Badges) -->
+<section class="mt-1 flex items-center justify-between bg-white/95 backdrop-blur-md border-2 border-amber-300/80 rounded-2xl p-2 px-3 shadow-[0_6px_16px_rgba(0,0,0,0.2),inset_0_2px_4px_rgba(255,255,255,0.9)]" data-purpose="drink-orders">
+<!-- Tavern Customer 1 Order -->
+<div class="flex items-center gap-2"><div class="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-rose-100 to-white border-2 border-rose-300 p-1 flex items-center justify-center shadow-md"><span class="text-2xl drop-shadow filter animate-pulse">🍹</span><span class="absolute -top-1 -right-1 bg-emerald-500 text-white text-[10px] font-black rounded-full px-1 border border-white shadow-sm">✓</span></div><div class="leading-tight"><div class="text-xs font-black text-stone-800">Tropical Sunset Punch</div><div class="text-[11px] text-emerald-600 font-extrabold flex items-center gap-1 mt-0.5"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Done (4/4)</div></div></div>
+<div class="h-8 w-0.5 bg-amber-200/80 rounded-full"></div>
+<!-- Tavern Customer 2 Order -->
+<div class="flex items-center gap-2"><div class="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-100 to-white border-2 border-amber-300 p-1 flex items-center justify-center shadow-md"><span class="text-2xl drop-shadow filter">🥥</span><span class="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 border border-white shadow-sm">2/4</span></div><div class="leading-tight"><div class="text-xs font-black text-stone-800">Lagoon Splash Brew</div><div class="w-18 bg-amber-100 rounded-full h-2.5 mt-1 overflow-hidden border border-amber-300 shadow-inner"><div class="bg-gradient-to-r from-amber-400 to-yellow-400 h-full rounded-full" style="width: 50%"></div></div></div></div>
+<!-- Quick Drink Recipe Bonus Chest (Juicy 3D Magenta/Purple Gift Box) -->
+<div class="relative flex flex-col items-center cursor-pointer active:scale-95 transition-transform">
+<div class="w-11 h-11 rounded-2xl bg-gradient-to-b from-fuchsia-500 via-purple-600 to-indigo-700 border-2 border-yellow-300 flex items-center justify-center text-xl shadow-[0_3px_0_#581c87,0_6px_10px_rgba(0,0,0,0.3)]">
+      🎁
+    </div>
+<span class="text-[9px] font-black text-purple-900 bg-yellow-300 px-1 rounded-full uppercase tracking-tighter shadow-sm mt-0.5">Reward</span>
+</div>
+</section></header>
+<!-- END: TopBarHUD -->
+<!-- BEGIN: MainPuzzlePlayfield -->
+<!-- Centered Tavern Color Sorting Rack directly situated on the wooden board space -->
+<main class="relative z-10 flex-1 flex flex-col justify-center items-center px-4" data-purpose="puzzle-board">
+<!-- Tavern Table Puzzle Board Card Frame -->
+<div class="w-full max-w-[390px] rounded-3xl bg-white/20 backdrop-blur-md p-3 border-2 border-white/60 shadow-[0_12px_32px_rgba(0,0,0,0.25),inset_0_2px_8px_rgba(255,255,255,0.6)] flex flex-col items-center">
+<!-- Puzzle Top Row: 4 Glass Bottles (Layout inspired by game screenshot) -->
+<div class="flex justify-around items-center w-full mb-5 gap-2 px-1">
+<!-- Bottle 1: Ruby/Sapphire/Amber mixed -->
+<div class="puzzle-bottle" data-bottle-id="1" id="bottle-1" onclick="handleBottleClick(1)">
+<div class="bottle-reflection"></div>
+<!-- Bottom Segment -->
+<div class="liquid-segment bg-rubyBerry" data-color="rubyBerry" style="height: 25%;"></div>
+<!-- Middle Segment 1 -->
+<div class="liquid-segment bg-amethystMead" data-color="amethystMead" style="height: 25%;"></div>
+<!-- Middle Segment 2 -->
+<div class="liquid-segment bg-sapphireBrew" data-color="sapphireBrew" style="height: 25%;"></div>
+<!-- Top Segment -->
+<div class="liquid-segment bg-amberAle" data-color="amberAle" style="height: 25%;"></div>
+</div>
+<!-- Bottle 2: Emerald / Honey Ale mixed -->
+<div class="puzzle-bottle" data-bottle-id="2" id="bottle-2" onclick="handleBottleClick(2)">
+<div class="bottle-reflection"></div>
+<div class="liquid-segment bg-emeraldCider" data-color="emeraldCider" style="height: 25%;"></div>
+<div class="liquid-segment bg-emeraldCider" data-color="emeraldCider" style="height: 25%;"></div>
+<div class="liquid-segment bg-amberAle" data-color="amberAle" style="height: 25%;"></div>
+<div class="liquid-segment bg-amethystMead" data-color="amethystMead" style="height: 25%;"></div>
+</div>
+<!-- Bottle 3: Frosted Frozen Keg Bottle (Need 1 move to thaw) -->
+<div class="puzzle-bottle frosted-bottle" data-bottle-id="3" id="bottle-3" onclick="handleLockedBottleClick()">
+<div class="bottle-reflection"></div>
+<!-- Frost lock padlock emblem -->
+<div class="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
+<span class="text-2xl filter drop-shadow">❄️</span>
+<div class="mt-1 bg-sky-900/90 text-sky-200 border border-sky-300 text-[10px] font-black rounded-lg px-2 py-0.5 shadow">
+                🔒 1
+              </div>
+</div>
+<div class="liquid-segment bg-sapphireBrew/80" data-color="sapphireBrew" style="height: 25%;"></div>
+<div class="liquid-segment bg-sapphireBrew/80" data-color="sapphireBrew" style="height: 25%;"></div>
+<div class="liquid-segment bg-amberAle/80" data-color="amberAle" style="height: 25%;"></div>
+<div class="liquid-segment bg-rubyBerry/80" data-color="rubyBerry" style="height: 25%;"></div>
+</div>
+<!-- Bottle 4: Mixed Berry & Cider -->
+<div class="puzzle-bottle" data-bottle-id="4" id="bottle-4" onclick="handleBottleClick(4)">
+<div class="bottle-reflection"></div>
+<div class="liquid-segment bg-amberAle" data-color="amberAle" style="height: 25%;"></div>
+<div class="liquid-segment bg-rubyBerry" data-color="rubyBerry" style="height: 25%;"></div>
+<div class="liquid-segment bg-amethystMead" data-color="amethystMead" style="height: 25%;"></div>
+<div class="liquid-segment bg-emeraldCider" data-color="emeraldCider" style="height: 25%;"></div>
+</div>
+</div>
+<!-- Puzzle Bottom Row: 4 Glass Bottles (including 2 empty receiver flasks) -->
+<div class="flex justify-around items-center w-full gap-2 px-1">
+<!-- Bottle 5: Mixed Purple / Sapphire -->
+<div class="puzzle-bottle" data-bottle-id="5" id="bottle-5" onclick="handleBottleClick(5)">
+<div class="bottle-reflection"></div>
+<div class="liquid-segment bg-rubyBerry" data-color="rubyBerry" style="height: 25%;"></div>
+<div class="liquid-segment bg-sapphireBrew" data-color="sapphireBrew" style="height: 25%;"></div>
+<div class="liquid-segment bg-emeraldCider" data-color="emeraldCider" style="height: 25%;"></div>
+<div class="liquid-segment bg-rubyBerry" data-color="rubyBerry" style="height: 25%;"></div>
+</div>
+<!-- Bottle 6: Completed/High ruby berry stack -->
+<div class="puzzle-bottle" data-bottle-id="6" id="bottle-6" onclick="handleBottleClick(6)">
+<div class="bottle-reflection"></div>
+<div class="liquid-segment bg-amethystMead" data-color="amethystMead" style="height: 25%;"></div>
+<div class="liquid-segment bg-amberAle" data-color="amberAle" style="height: 25%;"></div>
+<div class="liquid-segment bg-sapphireBrew" data-color="sapphireBrew" style="height: 25%;"></div>
+<div class="liquid-segment bg-sapphireBrew" data-color="sapphireBrew" style="height: 25%;"></div>
+</div>
+<!-- Bottle 7: Empty Clear Tavern Flagon 1 -->
+<div class="puzzle-bottle" data-bottle-id="7" id="bottle-7" onclick="handleBottleClick(7)">
+<div class="bottle-reflection"></div>
+<!-- Completely empty flagon ready for pouring -->
+<div class="w-full h-full flex items-center justify-center opacity-30">
+<span class="text-xs font-black text-amber-100 uppercase tracking-widest rotate-90">Pour</span>
+</div>
+</div>
+<!-- Bottle 8: Empty Clear Tavern Flagon 2 -->
+<div class="puzzle-bottle" data-bottle-id="8" id="bottle-8" onclick="handleBottleClick(8)">
+<div class="bottle-reflection"></div>
+<!-- Empty flagon -->
+<div class="w-full h-full flex items-center justify-center opacity-30">
+<span class="text-xs font-black text-amber-100 uppercase tracking-widest rotate-90">Empty</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Feedback Toast Notification Banner -->
+<div class="mt-3 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 border-2 border-white text-stone-900 text-xs font-black shadow-[0_4px_12px_rgba(0,0,0,0.25)] transition-all duration-300 opacity-95 transform translate-y-0" id="status-toast">🏖️ Tap a tropical flask to pick, then tap another to pour!</div>
+</main>
+<!-- END: MainPuzzlePlayfield -->
+<!-- BEGIN: BottomBoosterControls -->
+<!-- Chunky 3D Casual Game Boosters matching https://lh3.googleusercontent.com/aida-public/AB6AXuAQhUJ6bErsMN16bA0H2cIYa4_OjEIQjmHRo2iyT2cpHUGZ7AQ-2QCEWEKfqCOjFfJ3J_kPVdig9ftlYO7Scefg3_yBqpZpuP1qttl14QmiZk50vOQGJ3rhTqux_5YIDPQnLWKw3a7vMcYQjvAnO9LIsv3jJiRacT1sz0M7k0u2nxhbU9rnIH0JsMB7TKGKvWzCMF4xwjcfed3W9q6ICU0wXw5uW_bxEmD2r3pz1aTmYs7bybX2wN5YIOLEpcmfT1LrAw layout -->
+<footer class="relative z-20 px-4 pb-6 pt-2" data-purpose="booster-action-bar"><!-- 3 Power-up Chunky Buttons Bar -->
+<div class="flex items-center justify-center gap-6">
+<!-- Booster 1: Undo Move (Royal Purple 3D with Gold Rim & Neon Green Count) -->
+<div class="flex flex-col items-center cursor-pointer active:scale-95 transition-all">
+<div class="relative">
+<button class="w-16 h-16 rounded-full bg-gradient-to-b from-purple-500 via-indigo-600 to-purple-900 border-4 border-yellow-300 text-white flex items-center justify-center shadow-[0_6px_0_#3b0764,0_10px_16px_rgba(0,0,0,0.35)] active:translate-y-1 active:shadow-[0_2px_0_#3b0764] transition-all" onclick="triggerBoosterEffect('Undo Move')" title="Undo Move">
+<svg class="w-8 h-8 filter drop-shadow" fill="none" stroke="currentColor" stroke-width="3.5" viewbox="0 0 24 24">
+<path d="M3 10h10a5 5 0 015 5v2m-15-7l4-4m-4 4l4 4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Badge Count -->
+<span class="absolute -bottom-1 -right-1 bg-gradient-to-b from-emerald-400 to-emerald-600 text-white text-xs font-black rounded-full w-6 h-6 border-2 border-white flex items-center justify-center shadow-md">
+        3
+      </span>
+</div>
+<span class="text-xs font-black text-white mt-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide">Undo</span>
+</div>
+<!-- Booster 2: Stir Brew / Shuffle (Big Chunky Golden-Yellow 3D Center Button) -->
+<div class="flex flex-col items-center cursor-pointer active:scale-95 transition-all">
+<div class="relative">
+<button class="w-20 h-20 rounded-full bg-gradient-to-b from-yellow-300 via-amber-400 to-amber-600 border-4 border-white text-stone-900 flex items-center justify-center shadow-[0_8px_0_#b45309,0_12px_20px_rgba(0,0,0,0.4)] active:translate-y-1 active:shadow-[0_3px_0_#b45309] transition-all" onclick="triggerBoosterEffect('Stir Tavern Brew')" title="Stir Brew">
+<svg class="w-10 h-10 filter drop-shadow text-amber-950" fill="none" stroke="currentColor" stroke-width="3.5" viewbox="0 0 24 24">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Badge Count -->
+<span class="absolute -bottom-1 -right-1 bg-gradient-to-b from-emerald-400 to-emerald-600 text-white text-xs font-black rounded-full w-6 h-6 border-2 border-white flex items-center justify-center shadow-md">
+        2
+      </span>
+</div>
+<span class="text-sm font-black text-amber-200 mt-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide">Stir Brew</span>
+</div>
+<!-- Booster 3: +1 Extra Flagon (Vivid Royal Purple with Neon Yellow/Green Plus Badge) -->
+<div class="flex flex-col items-center cursor-pointer active:scale-95 transition-all">
+<div class="relative">
+<button class="w-16 h-16 rounded-full bg-gradient-to-b from-purple-500 via-indigo-600 to-purple-900 border-4 border-yellow-300 text-white flex items-center justify-center shadow-[0_6px_0_#3b0764,0_10px_16px_rgba(0,0,0,0.35)] active:translate-y-1 active:shadow-[0_2px_0_#3b0764] transition-all" onclick="triggerBoosterEffect('+1 Extra Flagon Added')" title="+1 Extra Bottle">
+<div class="relative flex items-center justify-center">
+<svg class="w-8 h-8 filter drop-shadow" fill="none" stroke="currentColor" stroke-width="2.5" viewbox="0 0 24 24">
+<path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="absolute -top-1 -right-2 text-xs font-black text-yellow-300 filter drop-shadow">+1</span>
+</div>
+</button>
+<!-- Badge Plus Free -->
+<span class="absolute -bottom-1 -right-1 bg-gradient-to-b from-amber-300 to-yellow-400 text-stone-900 text-xs font-black rounded-full w-6 h-6 border-2 border-white flex items-center justify-center shadow-md">
+        +
+      </span>
+</div>
+<span class="text-xs font-black text-white mt-1 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-wide">+ Bottle</span>
+</div>
+</div></footer>
+<!-- END: BottomBoosterControls -->
+</div>
+<!-- END: GameScreenRoot -->
+<!-- BEGIN: GameLogicAndAudioScript -->
+<script data-purpose="gameplay-interactivity">
+    // Web Audio Synthesizer for cheerful tavern sounds
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioContext();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // Play casual game synth sounds (Select chirp & Pour bubbly chime)
+    function playSound(type) {
+      try {
+        initAudio();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+
+        if (type === 'select') {
+          // Cheerful high-pitch tap
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+          gainNode.gain.setValueAtTime(0.3, now);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } else if (type === 'pour') {
+          // Liquid bubble chord chime
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.linearRampToValueAtTime(540, now + 0.15);
+          osc.frequency.linearRampToValueAtTime(780, now + 0.28);
+          gainNode.gain.setValueAtTime(0.35, now);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        } else if (type === 'error') {
+          // Low wood clonk
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(90, now + 0.18);
+          gainNode.gain.setValueAtTime(0.2, now);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        }
+      } catch (e) {
+        // Fallback gracefully on strict autoplay
+      }
+    }
+
+    // Puzzle State
+    let selectedBottleId = null;
+    let remainingMoves = 14;
+
+    function showToast(text, isAlert = false) {
+      const toast = document.getElementById('status-toast');
+      toast.textContent = text;
+      if (isAlert) {
+        toast.className = 'mt-3 px-4 py-1.5 rounded-full bg-rose-900/90 border border-rose-300 text-rose-100 text-xs font-bold shadow-lg transition-all duration-300';
+      } else {
+        toast.className = 'mt-3 px-4 py-1.5 rounded-full bg-amber-900/90 border border-amber-300/40 text-amber-100 text-xs font-bold shadow-lg transition-all duration-300';
+      }
+    }
+
+    function handleLockedBottleClick() {
+      playSound('error');
+      showToast('❄️ This flagon is frozen! Clear neighboring honey to thaw.', true);
+    }
+
+    function handleBottleClick(bottleId) {
+      const clickedBottle = document.getElementById(`bottle-${bottleId}`);
+      if (!clickedBottle) return;
+
+      // Extract existing liquid segments
+      const segments = clickedBottle.querySelectorAll('.liquid-segment');
+
+      // Case 1: No bottle currently selected
+      if (selectedBottleId === null) {
+        if (segments.length === 0) {
+          showToast('🍺 That tavern flagon is empty! Pick a filled brew first.');
+          playSound('error');
+          return;
+        }
+
+        // Select this source bottle
+        selectedBottleId = bottleId;
+        clickedBottle.classList.add('is-selected');
+        playSound('select');
+        showToast(`Selected flagon #${bottleId}! Tap target flagon to pour.`);
+        return;
+      }
+
+      // Case 2: Clicked on the already selected bottle -> Deselect it
+      if (selectedBottleId === bottleId) {
+        clickedBottle.classList.remove('is-selected');
+        selectedBottleId = null;
+        playSound('select');
+        showToast('Flagon unselected.');
+        return;
+      }
+
+      // Case 3: Destination bottle chosen -> Perform simulated pour
+      const sourceBottle = document.getElementById(`bottle-${selectedBottleId}`);
+      const sourceSegments = sourceBottle.querySelectorAll('.liquid-segment');
+      const destSegments = clickedBottle.querySelectorAll('.liquid-segment');
+
+      if (destSegments.length >= 4) {
+        playSound('error');
+        showToast('⚠️ Target flagon is full! Choose an open or empty flask.', true);
+        return;
+      }
+
+      // Top color of source
+      const topSegment = sourceSegments[sourceSegments.length - 1];
+      const sourceColor = topSegment.getAttribute('data-color');
+      const sourceBgClass = Array.from(topSegment.classList).find(c => c.startsWith('bg-'));
+
+      // Target flagon color check (if has segments, top must match)
+      if (destSegments.length > 0) {
+        const destTopSegment = destSegments[destSegments.length - 1];
+        const destTopColor = destTopSegment.getAttribute('data-color');
+        if (destTopColor !== sourceColor) {
+          playSound('error');
+          showToast('🚫 Brew colors must match to sort! Try another flagon.', true);
+          return;
+        }
+      }
+
+      // Clean empty placeholder text inside target if any
+      const emptyNote = clickedBottle.querySelector('.opacity-30');
+      if (emptyNote) {
+        emptyNote.remove();
+      }
+
+      // Perform transfer animation
+      topSegment.remove();
+      
+      const newSegment = document.createElement('div');
+      newSegment.className = `liquid-segment ${sourceBgClass}`;
+      newSegment.setAttribute('data-color', sourceColor);
+      newSegment.style.height = '25%';
+      clickedBottle.appendChild(newSegment);
+
+      // Decrement move counter
+      remainingMoves = Math.max(0, remainingMoves - 1);
+      document.getElementById('moves-counter').textContent = remainingMoves;
+
+      // Unselect source
+      sourceBottle.classList.remove('is-selected');
+      const prevId = selectedBottleId;
+      selectedBottleId = null;
+
+      // Play joyful pour sound
+      playSound('pour');
+      showToast(`✨ Poured delicious brew from #${prevId} to #${bottleId}!`);
+    }
+
+    function triggerBoosterEffect(boosterName) {
+      playSound('pour');
+      showToast(`⚡ Booster Activated: ${boosterName}!`);
+    }
+  </script>
+<!-- END: GameLogicAndAudioScript -->
+</body></html>
