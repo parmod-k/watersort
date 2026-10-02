@@ -28,6 +28,7 @@ import {
 } from '../../game/levels';
 import { recordFor, scoreFor, targetSeconds } from '../../game/scoring';
 import { completeLevel, useProgress } from '../../game/progress';
+import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 /** Upper bound on bottles on the board (largest level plus the extra-bottle power-up). */
 const MAX_TUBES = 20;
@@ -35,15 +36,20 @@ const HINTS_PER_LEVEL = 3;
 
 type Move = { source: number; target: number; color: TubeColor; count: number };
 
-/** Fits the bottles into the stage: up to 3 rows, shrinking bottles as the count grows. */
-function boardLayout(count: number, stageW: number, stageH: number) {
-  const rows = count <= 5 ? 1 : count <= 10 ? 2 : 3;
+/**
+ * Fits the bottles into the stage: up to 3 rows, shrinking bottles as the count grows.
+ * `scale` (1 on phones) lets bottles and gaps grow on larger screens.
+ */
+function boardLayout(count: number, stageW: number, stageH: number, scale = 1) {
+  // A wide, short stage (landscape, desktop) fits more bottles per row.
+  const wideStage = stageW > stageH * 1.4;
+  const rows = wideStage ? (count <= 8 ? 1 : count <= 16 ? 2 : 3) : count <= 5 ? 1 : count <= 10 ? 2 : 3;
   const perRow = Math.ceil(count / rows);
-  const gapX = perRow >= 6 ? 10 : 18;
-  const rowGap = rows === 3 ? 34 : 44;
+  const gapX = (perRow >= 6 ? 10 : 18) * scale;
+  const rowGap = (rows === 3 ? 34 : 44) * Math.min(scale, 1.2);
   // Room above the top row for the lifted bottle and the completion sparkle.
   const headroom = 30;
-  let tubeW = Math.min(56, (stageW - (perRow - 1) * gapX) / perRow);
+  let tubeW = Math.min(56 * scale, (stageW - (perRow - 1) * gapX) / perRow);
   const tubeH = Math.min(tubeW * 3.15, (stageH - headroom - (rows - 1) * rowGap) / rows);
   tubeW = Math.min(tubeW, tubeH / 2.6);
   return { rows, perRow, gapX, rowGap, tubeW, tubeH };
@@ -86,7 +92,10 @@ export default function PlayScreen() {
   // The tube currently tilting, and which lip it pivots on (1 = right lip, -1 = left lip).
   const [tilt, setTilt] = useState<{ id: number; dir: 1 | -1 } | null>(null);
 
-  const layout = stageSize ? boardLayout(tubes.length, stageSize.w, stageSize.h) : null;
+  const { isCompact, isTablet, isWide, isShort, gutter } = useResponsive();
+  const boardScale = isWide ? 1.5 : isTablet ? 1.3 : 1;
+  const layout = stageSize ? boardLayout(tubes.length, stageSize.w, stageSize.h, boardScale) : null;
+  const controlSize = isCompact ? 42 : isTablet ? 56 : 48;
   const completedCount = useMemo(() => tubes.filter(isTubeComplete).length, [tubes]);
 
   function resetBoard() {
@@ -483,13 +492,19 @@ export default function PlayScreen() {
   return (
     <View style={styles.screen}>
       <GameHeader level={levelNum} coins={progress.coins} />
-      <View style={styles.content}>
+      <View
+        style={[
+          styles.content,
+          { paddingHorizontal: gutter, paddingTop: isShort ? spacing.sm : spacing.md },
+        ]}
+      >
         <View style={styles.topRow}>
           <GlassPill style={styles.movesPill}>
             <View style={styles.rowCenter}>
               <MaterialIcons name="touch-app" size={18} color={colors.primaryContainer} />
               <Text style={styles.movesLabel}>
-                Moves: <Text style={styles.movesValue}>{moves}</Text>
+                {isCompact ? '' : 'Moves: '}
+                <Text style={styles.movesValue}>{moves}</Text>
               </Text>
               <MaterialIcons
                 name="timer"
@@ -514,7 +529,7 @@ export default function PlayScreen() {
             <GlassPill style={styles.hintPill}>
               <View style={styles.rowCenter}>
                 <MaterialIcons name="lightbulb" size={18} color="#FACC15" />
-                <Text style={styles.hintText}>Hint</Text>
+                {!isCompact && <Text style={styles.hintText}>Hint</Text>}
                 <View style={styles.hintBadge}>
                   <Text style={styles.hintBadgeText}>{hintsLeft}</Text>
                 </View>
@@ -523,7 +538,7 @@ export default function PlayScreen() {
           </Pressable>
         </View>
 
-        <GlassPill tint="low" style={styles.tipBar} radius={16}>
+        <GlassPill tint="low" style={[styles.tipBar, isShort && { marginBottom: spacing.sm }]} radius={16}>
           <View style={styles.tipRow}>
             <View style={[styles.rowCenter, { flex: 1 }]}>
               <View style={[styles.tipDot, level.mystery && { backgroundColor: colors.secondary }]} />
@@ -541,7 +556,7 @@ export default function PlayScreen() {
         </GlassPill>
 
         <View
-          style={[styles.stage, layout && { gap: layout.rowGap }]}
+          style={[styles.stage, isShort && { paddingTop: 16 }, layout && { gap: layout.rowGap }]}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             setStageSize({ w: width, h: height });
@@ -649,13 +664,27 @@ export default function PlayScreen() {
           )}
         </View>
 
-        <View style={styles.controlsRow}>
-          <IconButton icon="undo" onPress={handleUndo} badge={history.length} badgeColor={colors.surfaceContainerHighest} />
-          <GradientButton label="Demo Pour" icon="play-arrow" onPress={handleDemo} />
-          <IconButton icon="refresh" onPress={handleRestart} />
+        <View style={[styles.controlsRow, isShort && { paddingVertical: spacing.md }, isTablet && styles.controlsRowWide]}>
+          <IconButton
+            icon="undo"
+            onPress={handleUndo}
+            badge={history.length}
+            badgeColor={colors.surfaceContainerHighest}
+            size={controlSize}
+          />
+          <GradientButton
+            label={isCompact ? 'Demo' : 'Demo Pour'}
+            icon="play-arrow"
+            onPress={handleDemo}
+            compact={isCompact}
+            height={isTablet ? 58 : 52}
+            style={styles.demoButton}
+          />
+          <IconButton icon="refresh" onPress={handleRestart} size={controlSize} />
           <IconButton
             icon="add"
             onPress={handleAddTube}
+            size={controlSize}
             badge={extraTubeUsed ? undefined : '+1'}
             badgeColor={colors.secondary}
             iconColor={colors.onSurface}
@@ -669,6 +698,7 @@ export default function PlayScreen() {
           style={[
             styles.toast,
             {
+              bottom: controlSize + (isShort ? 40 : 56),
               opacity: toastOpacity,
               transform: [
                 {
@@ -679,7 +709,9 @@ export default function PlayScreen() {
           ]}
         >
           <MaterialIcons name={toast.icon} size={18} color={colors.primaryContainer} />
-          <Text style={styles.toastText}>{toast.text}</Text>
+          <Text style={[styles.toastText, { flexShrink: 1 }]} numberOfLines={2}>
+            {toast.text}
+          </Text>
         </Animated.View>
       )}
     </View>
@@ -688,7 +720,7 @@ export default function PlayScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { flex: 1, paddingHorizontal: spacing.margin, paddingTop: spacing.md },
+  content: { flex: 1, width: '100%', maxWidth: contentMaxWidth.board, alignSelf: 'center' },
   rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md, flexWrap: 'wrap' },
   movesPill: { paddingHorizontal: 12, paddingVertical: 8 },
@@ -728,12 +760,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     paddingVertical: spacing.lg,
   },
+  controlsRowWide: { width: '100%', maxWidth: 520, alignSelf: 'center' },
+  demoButton: { flexShrink: 1, minWidth: 0 },
   toast: {
     position: 'absolute',
-    bottom: 110,
     alignSelf: 'center',
+    maxWidth: '90%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

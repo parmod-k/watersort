@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import GradientButton from '../components/ui/GradientButton';
 import { colors, fontFamily, liquidOrder, radii, spacing } from '../theme/tokens';
 import { playLevel } from '../game/progress';
 import { SCORE_MAX } from '../game/scoring';
+import { useResponsive } from '../theme/responsive';
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -31,6 +32,7 @@ export default function LevelCompleteScreen() {
     time: string;
     restraint: string;
   }>();
+  const { isCompact, isShort, gutter } = useResponsive();
   const level = Number(params.level ?? 1);
   const moves = Number(params.moves ?? 0);
   const par = Number(params.par ?? 0);
@@ -56,129 +58,139 @@ export default function LevelCompleteScreen() {
   return (
     <View style={styles.backdrop}>
       <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
-      <SafeAreaView style={styles.centerWrap}>
-        <View style={styles.sheet}>
-          <View style={styles.badgeRow}>
-            <MaterialIcons name="auto-awesome" size={14} color={colors.onSurface} />
-            <Text style={styles.badgeText}>
-              {stars === 3 ? 'PERFECT SORT' : 'SORTED'}
-              {usedUndo || usedExtra ? '' : ' · NO POWER-UPS'}
-            </Text>
-          </View>
-
-          <Text style={styles.title}>LEVEL {level}</Text>
-          <Text style={styles.cleared}>CLEARED!</Text>
-
-          <View style={styles.starsRow}>
-            <MaterialIcons name="star" size={40} color={stars >= 1 ? colors.amber : 'rgba(255,209,59,0.2)'} />
-            <View style={styles.starCenterWrap}>
-              <MaterialIcons name="star" size={64} color={stars >= 2 ? colors.amber : 'rgba(255,209,59,0.2)'} />
-            </View>
-            <MaterialIcons name="star" size={40} color={stars >= 3 ? colors.amber : 'rgba(255,209,59,0.2)'} />
-          </View>
-          <Text style={styles.starsLabel}>
-            {stars} / 3 Stars Earned · {moves <= par ? 'Under Target Moves' : 'Over Target Moves'}
-          </Text>
-
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardHeaderLabel}>LABORATORY PURITY</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="verified" size={14} color={colors.primaryContainer} />
-                <Text style={styles.cardHeaderMeta}>100% Sorted</Text>
-              </View>
-            </View>
-            <View style={styles.purityRow}>
-              {purity.map((p) => (
-                <View key={p.name} style={styles.purityItem}>
-                  <Tube colorsStack={[p.color, p.color, p.color, p.color]} capacity={4} width={40} height={100} />
-                  <Text style={styles.purityLabel}>{p.name}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.statRow}>
-              <View style={styles.statLeft}>
-                <View style={styles.statIcon}>
-                  <MaterialIcons name="swap-vert" size={18} color={colors.cyan} />
-                </View>
-                <View>
-                  <Text style={styles.statTitle}>Moves Used</Text>
-                  <Text style={styles.statSub}>
-                    Target: {par} · {moves <= par ? 'Under Par!' : `${moves - par} over par`}
-                  </Text>
-                </View>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.statValue}>{moves}</Text>
-                <Text style={styles.statValueSub}>{clock}</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.statRow}>
-              <View style={styles.statLeft}>
-                <View style={styles.statIcon}>
-                  <MaterialIcons name="monetization-on" size={18} color={colors.amber} />
-                </View>
-                <View>
-                  <Text style={styles.statTitle}>Victory Coins</Text>
-                  <Text style={styles.statSub}>Base reward + efficiency</Text>
-                </View>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.statValue, { color: colors.amber }]}>+{coins}</Text>
-                <Text style={styles.statValueSub}>Total</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            <View style={{ gap: 6 }}>
-              <View style={styles.rowBetween}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <MaterialIcons name="leaderboard" size={16} color={colors.secondary} />
-                  <Text style={styles.themeUnlockText}>Leaderboard Score</Text>
-                </View>
-                <Text style={styles.themeUnlockMeta}>
-                  {score} / {scoreMax}
-                </Text>
-              </View>
-              <View style={styles.progressTrack}>
-                <LinearGradient
-                  colors={[colors.violet, colors.cyan]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.progressFill, { width: `${Math.round((score / scoreMax) * 100)}%` }]}
-                />
-              </View>
-              <Text style={styles.scoreBreakdown}>
-                Clear +{SCORE_MAX.base} · Moves +{params.efficiency ?? 0} · Time +{params.time ?? 0} · No power-ups +
-                {params.restraint ?? 0}
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={[styles.centerWrap, { paddingHorizontal: gutter }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.sheet, (isCompact || isShort) && { padding: 18 }]}>
+            <View style={styles.badgeRow}>
+              <MaterialIcons name="auto-awesome" size={14} color={colors.onSurface} />
+              <Text style={styles.badgeText}>
+                {stars === 3 ? 'PERFECT SORT' : 'SORTED'}
+                {usedUndo || usedExtra ? '' : ' · NO POWER-UPS'}
               </Text>
             </View>
+
+            <Text style={[styles.title, isCompact && { fontSize: 26 }]}>LEVEL {level}</Text>
+            <Text style={[styles.cleared, isCompact && { fontSize: 26 }]}>CLEARED!</Text>
+
+            <View style={[styles.starsRow, isShort && { marginTop: 12 }]}>
+              <MaterialIcons name="star" size={40} color={stars >= 1 ? colors.amber : 'rgba(255,209,59,0.2)'} />
+              <View style={styles.starCenterWrap}>
+                <MaterialIcons name="star" size={64} color={stars >= 2 ? colors.amber : 'rgba(255,209,59,0.2)'} />
+              </View>
+              <MaterialIcons name="star" size={40} color={stars >= 3 ? colors.amber : 'rgba(255,209,59,0.2)'} />
+            </View>
+            <Text style={[styles.starsLabel, isShort && { marginBottom: 14 }]}>
+              {stars} / 3 Stars Earned · {moves <= par ? 'Under Target Moves' : 'Over Target Moves'}
+            </Text>
+
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardHeaderLabel}>LABORATORY PURITY</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <MaterialIcons name="verified" size={14} color={colors.primaryContainer} />
+                  <Text style={styles.cardHeaderMeta}>100% Sorted</Text>
+                </View>
+              </View>
+              <View style={styles.purityRow}>
+                {purity.map((p) => (
+                  <View key={p.name} style={styles.purityItem}>
+                    <Tube
+                      colorsStack={[p.color, p.color, p.color, p.color]}
+                      capacity={4}
+                      width={isCompact ? 32 : 40}
+                      height={isCompact || isShort ? 80 : 100}
+                    />
+                    <Text style={styles.purityLabel}>{p.name}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.statRow}>
+                <View style={styles.statLeft}>
+                  <View style={styles.statIcon}>
+                    <MaterialIcons name="swap-vert" size={18} color={colors.cyan} />
+                  </View>
+                  <View style={{ flexShrink: 1 }}>
+                    <Text style={styles.statTitle}>Moves Used</Text>
+                    <Text style={styles.statSub}>
+                      Target: {par} · {moves <= par ? 'Under Par!' : `${moves - par} over par`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.statValue}>{moves}</Text>
+                  <Text style={styles.statValueSub}>{clock}</Text>
+                </View>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.statRow}>
+                <View style={styles.statLeft}>
+                  <View style={styles.statIcon}>
+                    <MaterialIcons name="monetization-on" size={18} color={colors.amber} />
+                  </View>
+                  <View style={{ flexShrink: 1 }}>
+                    <Text style={styles.statTitle}>Victory Coins</Text>
+                    <Text style={styles.statSub}>Base reward + efficiency</Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.statValue, { color: colors.amber }]}>+{coins}</Text>
+                  <Text style={styles.statValueSub}>Total</Text>
+                </View>
+              </View>
+              <View style={styles.divider} />
+              <View style={{ gap: 6 }}>
+                <View style={styles.rowBetween}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <MaterialIcons name="leaderboard" size={16} color={colors.secondary} />
+                    <Text style={styles.themeUnlockText}>Leaderboard Score</Text>
+                  </View>
+                  <Text style={styles.themeUnlockMeta}>
+                    {score} / {scoreMax}
+                  </Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <LinearGradient
+                    colors={[colors.violet, colors.cyan]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.progressFill, { width: `${Math.round((score / scoreMax) * 100)}%` }]}
+                  />
+                </View>
+                <Text style={styles.scoreBreakdown}>
+                  Clear +{SCORE_MAX.base} · Moves +{params.efficiency ?? 0} · Time +{params.time ?? 0} · No power-ups +
+                  {params.restraint ?? 0}
+                </Text>
+              </View>
+            </View>
+
+            <GradientButton label="Next Level" icon="arrow-forward" fullWidth onPress={() => goTo(level + 1)} />
+            <View style={{ height: 10 }} />
+            <GradientButton
+              label={`Claim 2X Coins (+${coins * 2})`}
+              icon="play-circle-filled"
+              fullWidth
+              colorsArr={[colors.amber, colors.amber, colors.amber]}
+              edgeColor="#B37A00"
+              textColor="#3D2900"
+            />
+
+            <View style={styles.footerRow}>
+              <FooterAction icon="replay" label="Replay" onPress={() => goTo(level)} />
+              <FooterAction icon="auto-fix-high" label="Cheers" />
+              <FooterAction icon="share" label="Share" />
+            </View>
+
+            <Pressable style={styles.closeBtn} onPress={() => goTo(level + 1)}>
+              <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+            </Pressable>
           </View>
-
-          <GradientButton label="Next Level" icon="arrow-forward" fullWidth onPress={() => goTo(level + 1)} />
-          <View style={{ height: 10 }} />
-          <GradientButton
-            label={`Claim 2X Coins (+${coins * 2})`}
-            icon="play-circle-filled"
-            fullWidth
-            colorsArr={[colors.amber, colors.amber, colors.amber]}
-            edgeColor="#B37A00"
-            textColor="#3D2900"
-          />
-
-          <View style={styles.footerRow}>
-            <FooterAction icon="replay" label="Replay" onPress={() => goTo(level)} />
-            <FooterAction icon="auto-fix-high" label="Cheers" />
-            <FooterAction icon="share" label="Share" />
-          </View>
-
-          <Pressable style={styles.closeBtn} onPress={() => goTo(level + 1)}>
-            <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
-          </Pressable>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -203,7 +215,7 @@ function FooterAction({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(7,8,18,0.8)' },
-  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.margin },
+  centerWrap: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg },
   sheet: {
     width: '100%',
     maxWidth: 480,
@@ -235,7 +247,14 @@ const styles = StyleSheet.create({
   },
   starsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 },
   starCenterWrap: { marginHorizontal: 4 },
-  starsLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelMd, fontSize: 12, marginTop: 8, marginBottom: 20 },
+  starsLabel: {
+    color: colors.onSurfaceVariant,
+    fontFamily: fontFamily.labelMd,
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
 
   card: {
     width: '100%',
@@ -251,8 +270,8 @@ const styles = StyleSheet.create({
   purityItem: { alignItems: 'center', gap: 8 },
   purityLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
 
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  statLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  statLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   statIcon: {
     width: 34,
     height: 34,

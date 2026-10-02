@@ -6,6 +6,7 @@ import GlassPill from '../../components/ui/GlassPill';
 import GradientButton from '../../components/ui/GradientButton';
 import Tube from '../../components/game/Tube';
 import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
+import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 const tabs = ['Vial Shapes', 'Fluid Styles', 'Stoppers'];
 
@@ -30,11 +31,17 @@ const vials: VialItem[] = [
 
 export default function ThemesScreen() {
   const [tab, setTab] = useState(0);
+  const { width, isTablet, isCompact, gutter } = useResponsive();
+  // 2 cards per row on phones, 3 on tablets; sized from the centred column width.
+  const columns = isTablet ? 3 : 2;
+  const gridGap = 12;
+  const columnW = Math.min(width, contentMaxWidth.page) - gutter * 2;
+  const cardW = Math.floor((columnW - gridGap * (columns - 1)) / columns);
 
   return (
     <View style={styles.screen}>
       <GameHeader />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
         <View style={styles.tabsRow}>
           {tabs.map((t, i) => (
             <Pressable key={t} onPress={() => setTab(i)}>
@@ -59,10 +66,15 @@ export default function ThemesScreen() {
             </View>
           </View>
           <View style={styles.previewTubeWrap}>
-            <Tube colorsStack={['cyan', 'purple', 'yellow']} capacity={4} width={64} height={200} />
+            <Tube
+              colorsStack={['cyan', 'purple', 'yellow']}
+              capacity={4}
+              width={isTablet ? 80 : isCompact ? 54 : 64}
+              height={isTablet ? 250 : isCompact ? 170 : 200}
+            />
           </View>
           <View style={styles.previewBottom}>
-            <View>
+            <View style={{ flex: 1, minWidth: 160 }}>
               <Text style={styles.previewTitle}>Standard Cylinder</Text>
               <Text style={styles.previewSub}>Classic balanced acoustic crystal</Text>
             </View>
@@ -87,7 +99,7 @@ export default function ThemesScreen() {
 
         <View style={styles.grid}>
           {vials.map((v) => (
-            <GlassPill key={v.id} tint="low" style={styles.card} radius={radii.md}>
+            <GlassPill key={v.id} tint="low" style={[styles.card, { width: cardW }]} radius={radii.md}>
               {v.tag && (
                 <Text style={[styles.cardTag, { color: v.tagColor }]} numberOfLines={1}>
                   {v.ctaKind === 'equipped' ? '✓ ' : ''}
@@ -97,7 +109,9 @@ export default function ThemesScreen() {
               <View style={styles.cardTubeWrap}>
                 <Tube colorsStack={['cyan']} capacity={2} width={40} height={90} />
               </View>
-              <Text style={styles.cardName}>{v.name}</Text>
+              <Text style={styles.cardName} numberOfLines={1}>
+                {v.name}
+              </Text>
               <Text style={styles.cardSub} numberOfLines={1}>{v.sub}</Text>
               {v.ctaKind === 'equipped' ? (
                 <View style={styles.inUsePill}>
@@ -148,8 +162,8 @@ export default function ThemesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { paddingHorizontal: spacing.margin, paddingTop: spacing.md, paddingBottom: 24 },
-  tabsRow: { flexDirection: 'row', gap: 8, marginBottom: spacing.lg },
+  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: 24 },
+  tabsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.lg },
   tabPill: { paddingHorizontal: 14, paddingVertical: 8 },
   tabPillActive: { borderColor: colors.primaryContainer },
   tabText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelMd, fontSize: 12 },
@@ -163,7 +177,7 @@ const styles = StyleSheet.create({
   editionPill: { backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   editionText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 10 },
   previewTubeWrap: { alignItems: 'center', paddingVertical: 20 },
-  previewBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  previewBottom: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   previewTitle: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 17 },
   previewSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 12, marginTop: 2 },
 
@@ -172,7 +186,7 @@ const styles = StyleSheet.create({
   sectionMeta: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: spacing.xl },
-  card: { width: '47%', padding: 12, gap: 6 },
+  card: { padding: 12, gap: 6 },
   cardTag: { fontFamily: fontFamily.labelSm, fontSize: 10, letterSpacing: 0.3 },
   cardTubeWrap: { alignItems: 'center', paddingVertical: 10 },
   cardName: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 14 },
@@ -190,7 +204,7 @@ const styles = StyleSheet.create({
   inUseText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
 
   treasuryBar: { padding: 12 },
-  treasuryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  treasuryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   treasuryLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 9, letterSpacing: 0.5 },
   treasuryValue: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 15 },
 });

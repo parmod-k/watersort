@@ -6,6 +6,7 @@ import GlassPill from '../../components/ui/GlassPill';
 import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { useProgress } from '../../game/progress';
 import { BoardKind, buildBoard, leagueFor, statsFor } from '../../game/scoring';
+import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 const segments: { kind: BoardKind; label: string }[] = [
   { kind: 'level', label: 'Top Level' },
@@ -68,6 +69,7 @@ function Medal({
 
 export default function RankScreen() {
   const [segment, setSegment] = useState(0);
+  const { gutter } = useResponsive();
   const progress = useProgress();
   const stats = statsFor(progress.records, progress.unlocked);
   const league = leagueFor(stats.score);
@@ -99,7 +101,7 @@ export default function RankScreen() {
   return (
     <View style={styles.screen}>
       <GameHeader />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
         <GlassPill tint="low" style={styles.profileCard} radius={radii.lg}>
           <View style={styles.profileTop}>
             <View style={styles.avatarWrap}>
@@ -109,7 +111,9 @@ export default function RankScreen() {
               </View>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.playerName}>{progress.playerName}</Text>
+              <Text style={styles.playerName} numberOfLines={1}>
+                {progress.playerName}
+              </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <MaterialIcons name="auto-awesome" size={12} color={colors.secondary} />
                 <Text style={styles.playerTitle}>{league.name} Alchemist</Text>
@@ -165,7 +169,7 @@ export default function RankScreen() {
           {segments.map((s, i) => (
             <Pressable key={s.kind} style={{ flex: 1 }} onPress={() => setSegment(i)}>
               <View style={[styles.segmentPill, i === segment && styles.segmentPillActive]}>
-                <Text style={[styles.segmentText, i === segment && styles.segmentTextActive]}>{s.label}</Text>
+                <Text numberOfLines={1} style={[styles.segmentText, i === segment && styles.segmentTextActive]}>{s.label}</Text>
               </View>
             </Pressable>
           ))}
@@ -194,7 +198,9 @@ export default function RankScreen() {
               </View>
               <View style={styles.playerAvatar} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.rowName}>{p.isMe ? `You (${p.name})` : p.name}</Text>
+                <Text style={styles.rowName} numberOfLines={1}>
+                  {p.isMe ? `You (${p.name})` : p.name}
+                </Text>
                 <Text style={styles.rowMeta}>
                   Level {p.level} · {p.stars} stars
                 </Text>
@@ -209,7 +215,9 @@ export default function RankScreen() {
             <Text style={styles.meBadgeText}>#{myEntry.rank}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowName}>You ({progress.playerName})</Text>
+            <Text style={styles.rowName} numberOfLines={1}>
+              You ({progress.playerName})
+            </Text>
             <Text style={styles.mePromoting}>{chase}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -250,7 +258,7 @@ export default function RankScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { paddingHorizontal: spacing.margin, paddingTop: spacing.md, paddingBottom: 24 },
+  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: 24 },
 
   profileCard: { padding: 16, marginBottom: spacing.lg, gap: 14 },
   profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },

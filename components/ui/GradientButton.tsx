@@ -14,6 +14,8 @@ type Props = {
   textColor?: string;
   height?: number;
   fullWidth?: boolean;
+  /** Tighter padding and text for narrow spaces. */
+  compact?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -26,6 +28,7 @@ export default function GradientButton({
   textColor = colors.onPrimaryFixed,
   height = 52,
   fullWidth = false,
+  compact = false,
   style,
 }: Props) {
   const [pressed, setPressed] = useState(false);
@@ -61,10 +64,13 @@ export default function GradientButton({
               borderRadius: height / 2,
               marginTop: pressed ? 3 : 0,
             },
+            compact && { paddingHorizontal: 14 },
           ]}
         >
-          {icon && <MaterialIcons name={icon} size={20} color={textColor} style={{ marginRight: 8 }} />}
-          <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+          {icon && <MaterialIcons name={icon} size={20} color={textColor} style={{ marginRight: compact ? 4 : 8 }} />}
+          <Text style={[styles.label, { color: textColor }, compact && { fontSize: 15 }]} numberOfLines={1}>
+            {label}
+          </Text>
         </LinearGradient>
       </View>
     </Pressable>

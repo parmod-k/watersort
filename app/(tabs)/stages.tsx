@@ -9,6 +9,7 @@ import GradientButton from '../../components/ui/GradientButton';
 import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { colorCountFor, isMysteryLevel } from '../../game/levels';
 import { playLevel, useProgress } from '../../game/progress';
+import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 type LevelState = 'locked' | 'current' | 'done';
 
@@ -53,6 +54,9 @@ function Stars({ count }: { count: number }) {
 
 export default function StagesScreen() {
   const progress = useProgress();
+  const { width, isTablet, gutter } = useResponsive();
+  // Wider screens spread the winding path out further.
+  const offsetScale = Math.min(Math.max(width / 400, 0.75), 1.6);
   const frontier = progress.unlocked;
   const chapter = Math.ceil(frontier / LEVELS_PER_CHAPTER);
   const chapterStart = (chapter - 1) * LEVELS_PER_CHAPTER + 1;
@@ -82,7 +86,7 @@ export default function StagesScreen() {
   return (
     <View style={styles.screen}>
       <GameHeader />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
         <GlassPill style={styles.chapterCard} radius={radii.lg}>
           <View style={styles.chapterRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
@@ -114,7 +118,9 @@ export default function StagesScreen() {
           <View style={styles.trialTop}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <MaterialIcons name="hourglass-top" size={18} color={colors.secondary} />
-              <Text style={styles.trialTitle}>Daily Alchemist Trial #12</Text>
+              <Text style={styles.trialTitle} numberOfLines={1}>
+                Daily Alchemist Trial #12
+              </Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <MaterialIcons name="schedule" size={14} color={colors.tertiaryFixed} />
@@ -131,7 +137,7 @@ export default function StagesScreen() {
               <MaterialIcons name="tips-and-updates" size={16} color={colors.primary} />
               <Text style={styles.trialRewardText}>+1 Hint Flask</Text>
             </View>
-            <View style={{ flex: 1 }} />
+            <View style={{ flexGrow: 1 }} />
             <GradientButton
               label="Accept"
               icon="arrow-forward"
@@ -163,7 +169,7 @@ export default function StagesScreen() {
               key={lvl.id}
               disabled={lvl.state === 'locked'}
               onPress={() => start(lvl.id)}
-              style={[styles.nodeWrap, { alignSelf: 'center', marginLeft: lvl.offset }]}
+              style={[styles.nodeWrap, { alignSelf: 'center', marginLeft: lvl.offset * offsetScale }]}
             >
               {lvl.state === 'current' && <Text style={styles.currentTag}>CURRENT</Text>}
               <View
@@ -194,9 +200,9 @@ export default function StagesScreen() {
         <GradientButton
           label={`Jump to Level ${frontier}`}
           icon="my-location"
-          fullWidth
+          fullWidth={!isTablet}
           onPress={() => start(frontier)}
-          style={{ marginTop: spacing.xl }}
+          style={{ marginTop: spacing.xl, alignSelf: 'center', minWidth: isTablet ? 360 : undefined }}
         />
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -206,7 +212,7 @@ export default function StagesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { paddingHorizontal: spacing.margin, paddingTop: spacing.md, paddingBottom: 24 },
+  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: 24 },
   chapterCard: { padding: 16, marginBottom: spacing.md },
   chapterRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   chapterLabel: { color: colors.primaryFixedDim, fontFamily: fontFamily.labelSm, fontSize: 11, letterSpacing: 1 },
@@ -218,11 +224,11 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3 },
 
   trialCard: { padding: 16, marginBottom: spacing.xl },
-  trialTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  trialTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 },
   trialTitle: { color: colors.secondary, fontFamily: fontFamily.labelMd, fontSize: 13 },
   trialTimer: { color: colors.tertiaryFixed, fontFamily: fontFamily.labelSm, fontSize: 11, fontWeight: '700' },
   trialDesc: { color: colors.onSurface, fontFamily: fontFamily.bodyMd, fontSize: 14, marginBottom: 10 },
-  trialRewardsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  trialRewardsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
   trialReward: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   trialRewardText: { color: colors.onSurface, fontFamily: fontFamily.labelSm, fontSize: 11 },
 

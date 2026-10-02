@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { colors, fontFamily } from '../theme/tokens';
+import { contentMaxWidth } from '../theme/responsive';
 
 type BottomTabBarProps = {
   state: { routes: { key: string; name: string }[]; index: number };
@@ -69,10 +70,13 @@ const styles = StyleSheet.create({
   },
   row: {
     height: 56,
+    width: '100%',
+    maxWidth: contentMaxWidth.page,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
   },
-  item: { alignItems: 'center', justifyContent: 'center', gap: 4, minWidth: 44 },
+  item: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, minWidth: 44, height: '100%' },
   label: { fontFamily: fontFamily.labelSm, fontSize: 11 },
 });
