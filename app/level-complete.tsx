@@ -3,20 +3,56 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Tube from '../components/game/Tube';
 import GradientButton from '../components/ui/GradientButton';
-import { colors, fontFamily, radii, spacing } from '../theme/tokens';
+import { colors, fontFamily, liquidOrder, radii, spacing } from '../theme/tokens';
+import { playLevel } from '../game/progress';
+import { SCORE_MAX } from '../game/scoring';
 
-const purity = [
-  { name: 'Cyan', color: 'cyan' as const },
-  { name: 'Violet', color: 'purple' as const },
-  { name: 'Amber', color: 'yellow' as const },
-  { name: 'Emerald', color: 'emerald' as const },
-];
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 export default function LevelCompleteScreen() {
+  const params = useLocalSearchParams<{
+    level: string;
+    moves: string;
+    par: string;
+    stars: string;
+    coins: string;
+    undo: string;
+    colors: string;
+    seconds: string;
+    extra: string;
+    score: string;
+    efficiency: string;
+    time: string;
+    restraint: string;
+  }>();
+  const level = Number(params.level ?? 1);
+  const moves = Number(params.moves ?? 0);
+  const par = Number(params.par ?? 0);
+  const stars = Number(params.stars ?? 3);
+  const coins = Number(params.coins ?? 0);
+  const usedUndo = params.undo === '1';
+  const usedExtra = params.extra === '1';
+  const seconds = Number(params.seconds ?? 0);
+  const score = Number(params.score ?? 0);
+  const scoreMax = SCORE_MAX.base + SCORE_MAX.efficiency + SCORE_MAX.time + SCORE_MAX.restraint;
+  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  // Show up to four of the colors this level used.
+  const purity = liquidOrder.slice(0, Math.min(4, Number(params.colors ?? 4))).map((c) => ({ name: capitalize(c), color: c }));
+
+  function goTo(next: number) {
+    playLevel(next);
+    // After a reload (web keeps the /level-complete URL) or a deep link there is nothing to go
+    // back to, so land on the Play tab instead.
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }
+
   return (
     <View style={styles.backdrop}>
       <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
@@ -24,20 +60,25 @@ export default function LevelCompleteScreen() {
         <View style={styles.sheet}>
           <View style={styles.badgeRow}>
             <MaterialIcons name="auto-awesome" size={14} color={colors.onSurface} />
-            <Text style={styles.badgeText}>PERFECT SORT · NO UNDOS</Text>
+            <Text style={styles.badgeText}>
+              {stars === 3 ? 'PERFECT SORT' : 'SORTED'}
+              {usedUndo || usedExtra ? '' : ' · NO POWER-UPS'}
+            </Text>
           </View>
 
-          <Text style={styles.title}>LEVEL 42</Text>
+          <Text style={styles.title}>LEVEL {level}</Text>
           <Text style={styles.cleared}>CLEARED!</Text>
 
           <View style={styles.starsRow}>
-            <MaterialIcons name="star" size={40} color="rgba(255,209,59,0.4)" />
+            <MaterialIcons name="star" size={40} color={stars >= 1 ? colors.amber : 'rgba(255,209,59,0.2)'} />
             <View style={styles.starCenterWrap}>
-              <MaterialIcons name="star" size={64} color={colors.amber} />
+              <MaterialIcons name="star" size={64} color={stars >= 2 ? colors.amber : 'rgba(255,209,59,0.2)'} />
             </View>
-            <MaterialIcons name="star" size={40} color="rgba(255,209,59,0.4)" />
+            <MaterialIcons name="star" size={40} color={stars >= 3 ? colors.amber : 'rgba(255,209,59,0.2)'} />
           </View>
-          <Text style={styles.starsLabel}>3 / 3 Stars Earned · Under Target Moves</Text>
+          <Text style={styles.starsLabel}>
+            {stars} / 3 Stars Earned · {moves <= par ? 'Under Target Moves' : 'Over Target Moves'}
+          </Text>
 
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
@@ -65,12 +106,14 @@ export default function LevelCompleteScreen() {
                 </View>
                 <View>
                   <Text style={styles.statTitle}>Moves Used</Text>
-                  <Text style={styles.statSub}>Target: 18 · Under Par!</Text>
+                  <Text style={styles.statSub}>
+                    Target: {par} · {moves <= par ? 'Under Par!' : `${moves - par} over par`}
+                  </Text>
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.statValue}>14</Text>
-                <Text style={styles.statValueSub}>+50 XP</Text>
+                <Text style={styles.statValue}>{moves}</Text>
+                <Text style={styles.statValueSub}>{clock}</Text>
               </View>
             </View>
             <View style={styles.divider} />
@@ -85,7 +128,7 @@ export default function LevelCompleteScreen() {
                 </View>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.statValue, { color: colors.amber }]}>+250</Text>
+                <Text style={[styles.statValue, { color: colors.amber }]}>+{coins}</Text>
                 <Text style={styles.statValueSub}>Total</Text>
               </View>
             </View>
@@ -93,26 +136,32 @@ export default function LevelCompleteScreen() {
             <View style={{ gap: 6 }}>
               <View style={styles.rowBetween}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <MaterialIcons name="science" size={16} color={colors.secondary} />
-                  <Text style={styles.themeUnlockText}>Theme Unlock: Galaxy Vials</Text>
+                  <MaterialIcons name="leaderboard" size={16} color={colors.secondary} />
+                  <Text style={styles.themeUnlockText}>Leaderboard Score</Text>
                 </View>
-                <Text style={styles.themeUnlockMeta}>4/5 Shards (80%)</Text>
+                <Text style={styles.themeUnlockMeta}>
+                  {score} / {scoreMax}
+                </Text>
               </View>
               <View style={styles.progressTrack}>
                 <LinearGradient
                   colors={[colors.violet, colors.cyan]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={[styles.progressFill, { width: '80%' }]}
+                  style={[styles.progressFill, { width: `${Math.round((score / scoreMax) * 100)}%` }]}
                 />
               </View>
+              <Text style={styles.scoreBreakdown}>
+                Clear +{SCORE_MAX.base} · Moves +{params.efficiency ?? 0} · Time +{params.time ?? 0} · No power-ups +
+                {params.restraint ?? 0}
+              </Text>
             </View>
           </View>
 
-          <GradientButton label="Next Level" icon="arrow-forward" fullWidth onPress={() => router.back()} />
+          <GradientButton label="Next Level" icon="arrow-forward" fullWidth onPress={() => goTo(level + 1)} />
           <View style={{ height: 10 }} />
           <GradientButton
-            label="Claim 2X Coins (+500)"
+            label={`Claim 2X Coins (+${coins * 2})`}
             icon="play-circle-filled"
             fullWidth
             colorsArr={[colors.amber, colors.amber, colors.amber]}
@@ -121,12 +170,12 @@ export default function LevelCompleteScreen() {
           />
 
           <View style={styles.footerRow}>
-            <FooterAction icon="replay" label="Replay" />
+            <FooterAction icon="replay" label="Replay" onPress={() => goTo(level)} />
             <FooterAction icon="auto-fix-high" label="Cheers" />
             <FooterAction icon="share" label="Share" />
           </View>
 
-          <Pressable style={styles.closeBtn} onPress={() => router.back()}>
+          <Pressable style={styles.closeBtn} onPress={() => goTo(level + 1)}>
             <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
           </Pressable>
         </View>
@@ -135,9 +184,17 @@ export default function LevelCompleteScreen() {
   );
 }
 
-function FooterAction({ icon, label }: { icon: keyof typeof MaterialIcons.glyphMap; label: string }) {
+function FooterAction({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  onPress?: () => void;
+}) {
   return (
-    <Pressable style={styles.footerAction}>
+    <Pressable style={styles.footerAction} onPress={onPress}>
       <MaterialIcons name={icon} size={18} color={colors.onSurfaceVariant} />
       <Text style={styles.footerActionText}>{label}</Text>
     </Pressable>
@@ -211,6 +268,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   themeUnlockText: { color: colors.onSurface, fontFamily: fontFamily.labelMd, fontSize: 12 },
+  scoreBreakdown: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 10 },
   themeUnlockMeta: { color: colors.secondary, fontFamily: fontFamily.labelSm, fontSize: 11 },
   progressTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.4)', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 3 },

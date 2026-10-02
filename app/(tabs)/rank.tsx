@@ -1,30 +1,100 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import GameHeader from '../../components/GameHeader';
 import GlassPill from '../../components/ui/GlassPill';
 import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
+import { useProgress } from '../../game/progress';
+import { BoardKind, buildBoard, leagueFor, statsFor } from '../../game/scoring';
 
-const segments = ['Global', 'Friends', 'Weekly Cup'];
+const segments: { kind: BoardKind; label: string }[] = [
+  { kind: 'level', label: 'Top Level' },
+  { kind: 'stars', label: 'Stars' },
+  { kind: 'score', label: 'Score' },
+];
 
-type Player = {
-  rank: number;
-  name: string;
-  meta: string;
-  stars: number;
-  xp?: string;
-  crownColor?: string;
+const BOARD_TITLES: Record<BoardKind, string> = {
+  level: 'Highest Level Reached',
+  stars: 'Most Stars Earned',
+  score: 'Efficiency Score',
 };
 
-const players: Player[] = [
-  { rank: 1, name: 'AquaQueen', meta: 'Level 60 · Alchemist Supreme', stars: 180, xp: '+5,000 XP', crownColor: colors.amber },
-  { rank: 2, name: 'LiquidSorcerer', meta: 'Level 58', stars: 176, xp: '+3,500 XP', crownColor: '#C7CEDB' },
-  { rank: 3, name: 'VialWizard', meta: 'Level 57', stars: 171, xp: '+2,000 XP', crownColor: '#D08A55' },
-  { rank: 4, name: 'HydroPulse', meta: 'Level 55', stars: 165 },
-];
+const PODIUM = [colors.amber, '#C7CEDB', '#D08A55'];
+const SHOWN = 5;
+
+function formatValue(kind: BoardKind, e: { level: number; stars: number; score: number }) {
+  if (kind === 'level') return `Lvl ${e.level}`;
+  if (kind === 'stars') return e.stars.toLocaleString();
+  return e.score.toLocaleString();
+}
+
+function Medal({
+  icon,
+  name,
+  desc,
+  value,
+  goal,
+  color,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  name: string;
+  desc: string;
+  value: number;
+  goal: number;
+  color: string;
+}) {
+  const done = value >= goal;
+  return (
+    <GlassPill tint="low" style={styles.medalCard} radius={radii.md}>
+      <View style={[styles.medalCircle, { borderColor: done ? color : colors.onSurfaceVariant }]}>
+        <MaterialIcons name={icon} size={26} color={done ? color : colors.onSurface} />
+      </View>
+      <Text style={styles.medalName}>{name}</Text>
+      <Text style={[styles.medalTier, { color: done ? color : colors.onSurfaceVariant }]}>
+        {done ? 'Earned' : `${Math.min(value, goal)} / ${goal}`}
+      </Text>
+      <Text style={styles.medalDesc}>{desc}</Text>
+      <View style={styles.medalTrack}>
+        <View
+          style={[
+            styles.medalFill,
+            { width: `${Math.min(100, (value / goal) * 100)}%`, backgroundColor: done ? color : colors.cyan },
+          ]}
+        />
+      </View>
+    </GlassPill>
+  );
+}
 
 export default function RankScreen() {
   const [segment, setSegment] = useState(0);
+  const progress = useProgress();
+  const stats = statsFor(progress.records, progress.unlocked);
+  const league = leagueFor(stats.score);
+  const kind = segments[segment].kind;
+
+  const me = useMemo(
+    () => ({ name: progress.playerName, level: stats.level, stars: stats.stars, score: stats.score }),
+    [progress.playerName, stats.level, stats.stars, stats.score],
+  );
+  const board = useMemo(() => buildBoard(me, kind), [me, kind]);
+  const myIndex = board.findIndex((e) => e.isMe);
+  const myEntry = board[myIndex];
+  const scoreBoard = useMemo(() => buildBoard(me, 'score'), [me]);
+  const myScoreRank = scoreBoard.find((e) => e.isMe)!.rank;
+  const topPct = Math.max(1, Math.round((myScoreRank / scoreBoard.length) * 100));
+  const avgScore = stats.cleared > 0 ? Math.round(stats.score / stats.cleared) : 0;
+
+  // The nearest rival ranked above the player on this board.
+  const ahead = board.filter((e) => !e.isMe && e.rank < myEntry.rank).pop();
+  let chase = 'You lead this board!';
+  if (ahead) {
+    if (kind === 'level') chase = `Reach level ${ahead.level + 1} to pass ${ahead.name}`;
+    else {
+      const gap = (kind === 'stars' ? ahead.stars - me.stars : ahead.score - me.score) + 1;
+      chase = `${gap.toLocaleString()} more ${kind === 'stars' ? 'stars' : 'pts'} to pass ${ahead.name}`;
+    }
+  }
 
   return (
     <View style={styles.screen}>
@@ -35,30 +105,34 @@ export default function RankScreen() {
             <View style={styles.avatarWrap}>
               <View style={styles.avatarRing} />
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>PRO</Text>
+                <Text style={styles.proBadgeText}>{league.name.toUpperCase()}</Text>
               </View>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.playerName}>FluidMaster_99</Text>
+              <Text style={styles.playerName}>{progress.playerName}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <MaterialIcons name="auto-awesome" size={12} color={colors.secondary} />
-                <Text style={styles.playerTitle}>Master Alchemist</Text>
+                <Text style={styles.playerTitle}>{league.name} Alchemist</Text>
               </View>
             </View>
             <View style={styles.lvlPill}>
-              <Text style={styles.lvlPillText}>Lvl 42</Text>
+              <Text style={styles.lvlPillText}>Lvl {stats.level}</Text>
             </View>
           </View>
 
           <View style={styles.leagueRow}>
             <MaterialIcons name="shield" size={20} color={colors.primaryContainer} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.leagueTitle}>Diamond Alchemist</Text>
-              <Text style={styles.leagueSub}>Tier III League</Text>
+              <Text style={styles.leagueTitle}>{league.name} League</Text>
+              <Text style={styles.leagueSub}>
+                {league.next
+                  ? `${(league.next.at - stats.score).toLocaleString()} pts to ${league.next.name}`
+                  : 'Top league reached'}
+              </Text>
             </View>
             <View style={styles.topGlobalPill}>
               <MaterialIcons name="public" size={12} color={colors.onSurfaceVariant} />
-              <Text style={styles.topGlobalText}>Top 5% Global</Text>
+              <Text style={styles.topGlobalText}>Top {topPct}%</Text>
             </View>
           </View>
 
@@ -66,21 +140,21 @@ export default function RankScreen() {
             <View style={styles.statBox}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                 <MaterialIcons name="star" size={16} color={colors.amber} />
-                <Text style={styles.statValue}>124</Text>
+                <Text style={styles.statValue}>{stats.stars}</Text>
               </View>
               <Text style={styles.statLabel}>Total Stars</Text>
             </View>
             <View style={styles.statBox}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="opacity" size={16} color={colors.cyan} />
-                <Text style={styles.statValue}>94.2%</Text>
+                <MaterialIcons name="speed" size={16} color={colors.cyan} />
+                <Text style={styles.statValue}>{avgScore}</Text>
               </View>
-              <Text style={styles.statLabel}>Win Rate</Text>
+              <Text style={styles.statLabel}>Avg Level Score</Text>
             </View>
             <View style={styles.statBox}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="settings" size={16} color={colors.secondary} />
-                <Text style={styles.statValue}>38</Text>
+                <MaterialIcons name="verified" size={16} color={colors.secondary} />
+                <Text style={styles.statValue}>{stats.perfect}</Text>
               </View>
               <Text style={styles.statLabel}>Perfect Sorts</Text>
             </View>
@@ -89,91 +163,84 @@ export default function RankScreen() {
 
         <View style={styles.segmentRow}>
           {segments.map((s, i) => (
-            <Pressable key={s} style={{ flex: 1 }} onPress={() => setSegment(i)}>
+            <Pressable key={s.kind} style={{ flex: 1 }} onPress={() => setSegment(i)}>
               <View style={[styles.segmentPill, i === segment && styles.segmentPillActive]}>
-                <Text style={[styles.segmentText, i === segment && styles.segmentTextActive]}>{s}</Text>
+                <Text style={[styles.segmentText, i === segment && styles.segmentTextActive]}>{s.label}</Text>
               </View>
             </Pressable>
           ))}
         </View>
 
         <View style={styles.standingsHeader}>
-          <Text style={styles.standingsTitle}>Diamond Division Standings</Text>
+          <Text style={styles.standingsTitle}>{BOARD_TITLES[kind]}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialIcons name="timer" size={13} color={colors.secondary} />
-            <Text style={styles.standingsMeta}>Resets in 2d 14h</Text>
+            <MaterialIcons name="info-outline" size={13} color={colors.secondary} />
+            <Text style={styles.standingsMeta}>Sample rivals · offline</Text>
           </View>
         </View>
 
-        {players.map((p) => (
-          <GlassPill key={p.rank} tint="low" style={styles.playerRow} radius={radii.md}>
-            <View style={[styles.rankBadge, p.crownColor && { backgroundColor: 'transparent', borderWidth: 2, borderColor: p.crownColor }]}>
-              {p.crownColor && <MaterialIcons name="emoji-events" size={10} color={p.crownColor} style={styles.crownIcon} />}
-              <Text style={styles.rankNum}>{p.rank}</Text>
-            </View>
-            <View style={styles.playerAvatar} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowName}>{p.name}</Text>
-              <Text style={styles.rowMeta}>{p.meta}</Text>
-            </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="star" size={14} color={colors.amber} />
-                <Text style={styles.rowStars}>{p.stars}</Text>
+        {board.slice(0, SHOWN).map((p) => {
+          const crown = p.rank <= 3 ? PODIUM[p.rank - 1] : undefined;
+          return (
+            <GlassPill
+              key={p.name}
+              tint={p.isMe ? 'glow' : 'low'}
+              style={[styles.playerRow, p.isMe && { borderColor: colors.cyan, borderWidth: 1 }]}
+              radius={radii.md}
+            >
+              <View style={[styles.rankBadge, crown && { backgroundColor: 'transparent', borderWidth: 2, borderColor: crown }]}>
+                {crown && <MaterialIcons name="emoji-events" size={10} color={crown} style={styles.crownIcon} />}
+                <Text style={styles.rankNum}>{p.rank}</Text>
               </View>
-              {p.xp && <Text style={styles.rowXp}>{p.xp}</Text>}
-            </View>
-          </GlassPill>
-        ))}
+              <View style={styles.playerAvatar} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowName}>{p.isMe ? `You (${p.name})` : p.name}</Text>
+                <Text style={styles.rowMeta}>
+                  Level {p.level} · {p.stars} stars
+                </Text>
+              </View>
+              <Text style={styles.rowStars}>{formatValue(kind, p)}</Text>
+            </GlassPill>
+          );
+        })}
 
         <GlassPill tint="glow" style={styles.meRow} radius={radii.md}>
           <View style={styles.meBadge}>
-            <Text style={styles.meBadgeText}>#42</Text>
+            <Text style={styles.meBadgeText}>#{myEntry.rank}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowName}>You (FluidMaster_99)</Text>
-            <Text style={styles.mePromoting}>Promoting to Master in 2d 14h</Text>
+            <Text style={styles.rowName}>You ({progress.playerName})</Text>
+            <Text style={styles.mePromoting}>{chase}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <MaterialIcons name="star" size={14} color={colors.amber} />
-              <Text style={styles.rowStars}>124</Text>
-            </View>
-            <Text style={styles.rowXp}>Level 42</Text>
+            <Text style={styles.rowStars}>{formatValue(kind, me)}</Text>
+            <Text style={styles.rowXp}>of {board.length} players</Text>
           </View>
         </GlassPill>
+
+        <Text style={styles.scoringNote}>
+          Level score: clear +100 · fewest pours up to +100 · time up to +50 · no Undo +50 · no extra bottle +50. Your
+          best score per level counts. Players on the same level share a rank.
+        </Text>
 
         <View style={styles.sectionHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <MaterialIcons name="military-tech" size={16} color={colors.secondary} />
             <Text style={styles.sectionTitle}>Alchemy Medals</Text>
           </View>
-          <Text style={styles.sectionMeta}>View All (14/20) ›</Text>
+          <Text style={styles.sectionMeta}>{stats.cleared} levels cleared</Text>
         </View>
 
         <View style={styles.medalsRow}>
-          <GlassPill tint="low" style={styles.medalCard} radius={radii.md}>
-            <View style={[styles.medalCircle, { borderColor: colors.amber }]}>
-              <MaterialIcons name="bolt" size={26} color={colors.amber} />
-            </View>
-            <Text style={styles.medalName}>Speed Pourer</Text>
-            <Text style={[styles.medalTier, { color: colors.amber }]}>Gold Tier</Text>
-            <Text style={styles.medalDesc}>Complete 10 sorts under 45s</Text>
-            <View style={styles.medalTrack}>
-              <View style={[styles.medalFill, { width: '100%', backgroundColor: colors.amber }]} />
-            </View>
-          </GlassPill>
-          <GlassPill tint="low" style={styles.medalCard} radius={radii.md}>
-            <View style={[styles.medalCircle, { borderColor: colors.onSurfaceVariant }]}>
-              <MaterialIcons name="psychology" size={26} color={colors.onSurface} />
-            </View>
-            <Text style={styles.medalName}>Pure Genius</Text>
-            <Text style={[styles.medalTier, { color: colors.onSurfaceVariant }]}>Silver Tier</Text>
-            <Text style={styles.medalDesc}>30 sorts without Undo</Text>
-            <View style={styles.medalTrack}>
-              <View style={[styles.medalFill, { width: '60%', backgroundColor: colors.cyan }]} />
-            </View>
-          </GlassPill>
+          <Medal icon="bolt" name="Speed Pourer" desc="Clear 10 levels in under 45s" value={stats.fast} goal={10} color={colors.amber} />
+          <Medal
+            icon="psychology"
+            name="Pure Genius"
+            desc="Clear 30 levels without Undo"
+            value={stats.noUndo}
+            goal={30}
+            color={colors.secondary}
+          />
         </View>
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -240,7 +307,7 @@ const styles = StyleSheet.create({
   standingsMeta: { color: colors.secondary, fontFamily: fontFamily.labelSm, fontSize: 10 },
 
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, marginBottom: 8 },
-  meRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, marginBottom: spacing.xl, borderColor: colors.cyan, borderWidth: 1 },
+  meRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, marginBottom: spacing.md, borderColor: colors.cyan, borderWidth: 1 },
   rankBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surfaceContainerHighest, alignItems: 'center', justifyContent: 'center' },
   crownIcon: { position: 'absolute', top: -10 },
   rankNum: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 12 },
@@ -252,6 +319,7 @@ const styles = StyleSheet.create({
   meBadge: { backgroundColor: colors.cyan, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   meBadgeText: { color: colors.onPrimary, fontFamily: fontFamily.counterNum, fontSize: 12 },
   mePromoting: { color: colors.cyan, fontFamily: fontFamily.labelSm, fontSize: 10 },
+  scoringNote: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 11, lineHeight: 16, marginBottom: spacing.xl },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
   sectionTitle: { color: colors.onSurface, fontFamily: fontFamily.labelLg, fontSize: 14 },

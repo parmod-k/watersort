@@ -52,7 +52,26 @@ export const liquidGradients: Record<string, [string, string, string]> = {
   emerald: ['#34D399', '#10E599', '#059669'],
   purple: ['#D946EF', '#A855F7', '#7E22CE'],
   yellow: ['#FDE047', '#FACC15', '#CA8A04'],
+  pink: ['#F9A8D4', '#F472B6', '#BE185D'],
+  orange: ['#FDBA74', '#FB923C', '#C2410C'],
+  blue: ['#93C5FD', '#3B82F6', '#1D4ED8'],
+  lime: ['#D9F99D', '#A3E635', '#4D7C0F'],
+  red: ['#FCA5A5', '#EF4444', '#991B1B'],
+  // Later levels add look-alike shades to make sorting harder.
+  sky: ['#E0F2FE', '#7DD3FC', '#0284C7'],
+  navy: ['#6366F1', '#3730A3', '#1E1B4B'],
+  teal: ['#5EEAD4', '#14B8A6', '#0F766E'],
+  brown: ['#D6A77A', '#A16207', '#5C3A0A'],
 };
+
+/** Order colors are introduced as levels get harder: distinct hues first, look-alikes last. */
+export const liquidOrder = [
+  'cyan', 'coral', 'purple', 'yellow', 'emerald', 'pink', 'orange',
+  'blue', 'lime', 'red', 'sky', 'navy', 'teal', 'brown',
+] as const;
+
+/** Greyed-out look for a "mystery" layer whose color is not yet revealed. */
+export const hiddenGradient: [string, string, string] = ['#6B7280', '#4B5563', '#374151'];
 
 export const fontFamily = {
   displayLg: 'Quicksand_700Bold',

@@ -7,14 +7,18 @@ import { router } from 'expo-router';
 import GlassPill from './ui/GlassPill';
 import IconButton from './ui/IconButton';
 import { colors, fontFamily, radii, spacing } from '../theme/tokens';
+import { useProgress } from '../game/progress';
 
 type Props = {
   level?: number;
   coins?: number;
 };
 
-export default function GameHeader({ level = 42, coins = 1450 }: Props) {
+export default function GameHeader(props: Props) {
   const insets = useSafeAreaInsets();
+  const progress = useProgress();
+  const level = props.level ?? progress.current;
+  const coins = props.coins ?? progress.coins;
   return (
     <View style={[styles.wrap, { paddingTop: insets.top }]}>
       <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />

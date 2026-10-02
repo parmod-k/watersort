@@ -1,11 +1,14 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import GameHeader from '../../components/GameHeader';
 import GlassPill from '../../components/ui/GlassPill';
 import GradientButton from '../../components/ui/GradientButton';
 import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
+import { colorCountFor, isMysteryLevel } from '../../game/levels';
+import { playLevel, useProgress } from '../../game/progress';
 
 type LevelState = 'locked' | 'current' | 'done';
 
@@ -17,27 +20,65 @@ type LevelNode = {
   offset: number;
 };
 
-const levels: LevelNode[] = [
-  { id: 44, state: 'locked', offset: 60 },
-  { id: 43, state: 'locked', offset: -30 },
-  { id: 42, state: 'current', label: 'Liquid Prism Core', offset: 0 },
-  { id: 41, state: 'done', stars: 3, offset: 55 },
-  { id: 40, state: 'done', stars: 3, offset: -50 },
-  { id: 39, state: 'done', stars: 3, offset: 45 },
-  { id: 38, state: 'done', stars: 3, offset: -20 },
+const LEVELS_PER_CHAPTER = 20;
+const CHAPTER_NAMES = [
+  'First Drops',
+  'Color Splash',
+  'Prismatic Laboratory',
+  'Shade Shifter',
+  'Mystery Vault',
+  'Liquid Labyrinth',
 ];
+const OFFSETS = [0, 55, -50, 45, -20, 60, -30];
+
+function chapterName(chapter: number) {
+  return CHAPTER_NAMES[(chapter - 1) % CHAPTER_NAMES.length];
+}
+
+/** A short description of what makes a level hard, shown under the current node. */
+function levelLabel(level: number) {
+  if (isMysteryLevel(level)) return 'Mystery Layers';
+  return `${colorCountFor(level)} Colors`;
+}
 
 function Stars({ count }: { count: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2, marginTop: 2 }}>
       {[0, 1, 2].map((i) => (
-        <MaterialIcons key={i} name="star" size={i === 1 ? 14 : 12} color="#FFD13B" />
+        <MaterialIcons key={i} name="star" size={i === 1 ? 14 : 12} color={i < count ? '#FFD13B' : 'rgba(255,209,59,0.25)'} />
       ))}
     </View>
   );
 }
 
 export default function StagesScreen() {
+  const progress = useProgress();
+  const frontier = progress.unlocked;
+  const chapter = Math.ceil(frontier / LEVELS_PER_CHAPTER);
+  const chapterStart = (chapter - 1) * LEVELS_PER_CHAPTER + 1;
+  const solvedInChapter = frontier - chapterStart;
+  const chapterPct = Math.round((solvedInChapter / LEVELS_PER_CHAPTER) * 100);
+
+  // A window around the newest unlocked level, highest at the top of the path.
+  const first = Math.max(1, frontier - 4);
+  const levels: LevelNode[] = [];
+  for (let id = frontier + 2; id >= first; id--) {
+    levels.push({
+      id,
+      state: id > frontier ? 'locked' : id === frontier ? 'current' : 'done',
+      stars: progress.records[id]?.stars,
+      label: id === frontier ? levelLabel(id) : undefined,
+      offset: OFFSETS[id % OFFSETS.length],
+    });
+  }
+  let nextMystery = frontier + 1;
+  while (!isMysteryLevel(nextMystery)) nextMystery++;
+
+  function start(level: number) {
+    playLevel(level);
+    router.navigate('/');
+  }
+
   return (
     <View style={styles.screen}>
       <GameHeader />
@@ -47,15 +88,16 @@ export default function StagesScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
               <MaterialIcons name="science" size={20} color={colors.primaryContainer} />
               <View>
-                <Text style={styles.chapterLabel}>CHAPTER 3</Text>
-                <Text style={styles.chapterTitle}>Prismatic Laboratory</Text>
+                <Text style={styles.chapterLabel}>CHAPTER {chapter}</Text>
+                <Text style={styles.chapterTitle}>{chapterName(chapter)}</Text>
               </View>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.chapterFraction}>
-                42<Text style={styles.chapterFractionSub}> / 60</Text>
+                {solvedInChapter}
+                <Text style={styles.chapterFractionSub}> / {LEVELS_PER_CHAPTER}</Text>
               </Text>
-              <Text style={styles.chapterSolved}>70% Solved</Text>
+              <Text style={styles.chapterSolved}>{chapterPct}% Solved</Text>
             </View>
           </View>
           <View style={styles.progressTrack}>
@@ -63,7 +105,7 @@ export default function StagesScreen() {
               colors={[colors.violet, colors.cyan]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={[styles.progressFill, { width: '70%' }]}
+              style={[styles.progressFill, { width: `${chapterPct}%` }]}
             />
           </View>
         </GlassPill>
@@ -111,13 +153,18 @@ export default function StagesScreen() {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
               <MaterialIcons name="stars" size={14} color={colors.amber} />
-              <Text style={styles.bossLabel}>Boss Flask: Neon Tube Skin</Text>
+              <Text style={styles.bossLabel}>Mystery Flask: Hidden Layers</Text>
             </View>
-            <Text style={styles.bossSub}>Level 45</Text>
+            <Text style={styles.bossSub}>Level {nextMystery}</Text>
           </View>
 
           {levels.map((lvl) => (
-            <View key={lvl.id} style={[styles.nodeWrap, { alignSelf: 'center', marginLeft: lvl.offset }]}>
+            <Pressable
+              key={lvl.id}
+              disabled={lvl.state === 'locked'}
+              onPress={() => start(lvl.id)}
+              style={[styles.nodeWrap, { alignSelf: 'center', marginLeft: lvl.offset }]}
+            >
               {lvl.state === 'current' && <Text style={styles.currentTag}>CURRENT</Text>}
               <View
                 style={[
@@ -140,14 +187,15 @@ export default function StagesScreen() {
               </View>
               {lvl.state === 'done' && lvl.stars !== undefined && <Stars count={lvl.stars} />}
               {lvl.label && <Text style={styles.nodeSub}>{lvl.label}</Text>}
-            </View>
+            </Pressable>
           ))}
         </View>
 
         <GradientButton
-          label="Jump to Level 42"
+          label={`Jump to Level ${frontier}`}
           icon="my-location"
           fullWidth
+          onPress={() => start(frontier)}
           style={{ marginTop: spacing.xl }}
         />
         <View style={{ height: 24 }} />

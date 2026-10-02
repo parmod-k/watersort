@@ -1,7 +1,7 @@
 import React from 'react';
-import { Animated, View, StyleSheet } from 'react-native';
+import { Animated, Text, View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { liquidGradients } from '../../theme/tokens';
+import { fontFamily, hiddenGradient, liquidGradients } from '../../theme/tokens';
 
 export type TubeColor = keyof typeof liquidGradients;
 
@@ -19,6 +19,8 @@ type Props = {
   growColor?: TubeColor;
   /** How many segments the current pour moves. */
   pourCount?: number;
+  /** How many bottom segments are "?" mystery layers whose color is not revealed yet. */
+  hiddenCount?: number;
 };
 
 export default function Tube({
@@ -32,6 +34,7 @@ export default function Tube({
   growAnim,
   growColor,
   pourCount = 1,
+  hiddenCount = 0,
 }: Props) {
   const slotHeight = height / capacity;
   const isFull = colorsStack.length === capacity;
@@ -72,7 +75,8 @@ export default function Tube({
             // Depth from the top; draining segments empty one after another, top first.
             const depth = colorsStack.length - 1 - idx;
             const isDraining = !!shrinkAnim && depth < pourCount;
-            const grad = liquidGradients[color] ?? liquidGradients.cyan;
+            const isHidden = idx < hiddenCount;
+            const grad = isHidden ? hiddenGradient : liquidGradients[color] ?? liquidGradients.cyan;
             const segStyle = isDraining
               ? {
                   height: shrinkAnim!.interpolate({
@@ -87,6 +91,11 @@ export default function Tube({
                 <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill}>
                   {isTop && !isDraining && <View style={styles.meniscus} />}
                   <View style={styles.segmentShade} />
+                  {isHidden && (
+                    <View style={styles.hiddenMark}>
+                      <Text style={[styles.hiddenText, { fontSize: Math.max(10, slotHeight * 0.45) }]}>?</Text>
+                    </View>
+                  )}
                 </LinearGradient>
               </Animated.View>
             );
@@ -172,6 +181,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.08)',
   },
+  hiddenMark: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.18)',
+  },
+  hiddenText: { color: 'rgba(255,255,255,0.75)', fontFamily: fontFamily.labelLg },
   meniscus: {
     height: 4,
     width: '100%',
