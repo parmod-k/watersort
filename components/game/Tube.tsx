@@ -12,11 +12,13 @@ type Props = {
   height?: number;
   selected?: boolean;
   complete?: boolean;
-  /** 0 -> 1: animates the current top segment draining away (pour source). */
+  /** 0 -> 1: animates the top `pourCount` segments draining away, top first (pour source). */
   shrinkAnim?: Animated.Value;
-  /** 0 -> 1: animates a new top segment filling in (pour target). */
+  /** 0 -> 1: animates `pourCount` new top segments filling in (pour target). */
   growAnim?: Animated.Value;
   growColor?: TubeColor;
+  /** How many segments the current pour moves. */
+  pourCount?: number;
 };
 
 export default function Tube({
@@ -29,6 +31,7 @@ export default function Tube({
   shrinkAnim,
   growAnim,
   growColor,
+  pourCount = 1,
 }: Props) {
   const slotHeight = height / capacity;
   const isFull = colorsStack.length === capacity;
@@ -66,10 +69,18 @@ export default function Tube({
         <View style={styles.liquidColumn}>
           {colorsStack.map((color, idx) => {
             const isTop = idx === colorsStack.length - 1;
-            const isDraining = isTop && !!shrinkAnim;
+            // Depth from the top; draining segments empty one after another, top first.
+            const depth = colorsStack.length - 1 - idx;
+            const isDraining = !!shrinkAnim && depth < pourCount;
             const grad = liquidGradients[color] ?? liquidGradients.cyan;
             const segStyle = isDraining
-              ? { height: shrinkAnim!.interpolate({ inputRange: [0, 1], outputRange: [slotHeight, 0] }) }
+              ? {
+                  height: shrinkAnim!.interpolate({
+                    inputRange: [depth / pourCount, (depth + 1) / pourCount],
+                    outputRange: [slotHeight, 0],
+                    extrapolate: 'clamp',
+                  }),
+                }
               : { height: slotHeight };
             return (
               <Animated.View key={idx} style={[styles.segmentWrap, segStyle]}>
@@ -84,7 +95,7 @@ export default function Tube({
             <Animated.View
               style={[
                 styles.segmentWrap,
-                { height: growAnim.interpolate({ inputRange: [0, 1], outputRange: [0, slotHeight] }) },
+                { height: growAnim.interpolate({ inputRange: [0, 1], outputRange: [0, slotHeight * pourCount] }) },
               ]}
             >
               <LinearGradient

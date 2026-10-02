@@ -31,10 +31,17 @@ const initialTubes: TubeColor[][] = [
   [],
 ];
 
-type Move = { source: number; target: number; color: TubeColor };
+type Move = { source: number; target: number; color: TubeColor; count: number };
 
 function isTubeComplete(stack: TubeColor[]) {
   return stack.length === CAPACITY && stack.every((c) => c === stack[0]);
+}
+
+/** Number of consecutive same-colored segments at the top of a stack. */
+function topRunLength(stack: TubeColor[]) {
+  let n = 0;
+  while (n < stack.length && stack[stack.length - 1 - n] === stack[stack.length - 1]) n++;
+  return n;
 }
 
 export default function PlayScreen() {
@@ -56,7 +63,7 @@ export default function PlayScreen() {
   const shrinkAnim = useRef(new Animated.Value(0)).current;
   const growAnim = useRef(new Animated.Value(0)).current;
   const streamAnim = useRef(new Animated.Value(0)).current;
-  const [pourFx, setPourFx] = useState<{ sourceId: number; targetId: number; color: TubeColor } | null>(null);
+  const [pourFx, setPourFx] = useState<{ sourceId: number; targetId: number; color: TubeColor; count: number } | null>(null);
   const [streamPos, setStreamPos] = useState<{ x: number; y: number; height: number } | null>(null);
   // The tube currently tilting, and which lip it pivots on (1 = right lip, -1 = left lip).
   const [tilt, setTilt] = useState<{ id: number; dir: 1 | -1 } | null>(null);
@@ -130,13 +137,15 @@ export default function PlayScreen() {
     }
     isAnimating.current = true;
     const pouredColor = sourceStack[sourceStack.length - 1];
+    // Pour the whole run of matching top segments, limited by the target's free slots.
+    const count = Math.min(topRunLength(sourceStack), CAPACITY - tubes[targetId].length);
 
     // Pour toward the target; for a vertically stacked pair, keep the tube body over the board's middle.
     const dir: 1 | -1 = tgt.x > src.x ? 1 : tgt.x < src.x ? -1 : sourceId % 3 === 0 ? -1 : 1;
 
     // A fuller tube needs less tilt before liquid reaches the mouth; it tips further while pouring.
     const startAngle = Math.min(80, 48 + (CAPACITY - sourceStack.length) * 10);
-    const endAngle = Math.min(95, startAngle + 14);
+    const endAngle = Math.min(95, startAngle + 4 + count * 10);
 
     // The tube pivots on its pouring lip, so the lip is a fixed point: park it just above the
     // centre of the target's mouth, high enough that the tilted wall clears the target's rim.
@@ -153,6 +162,7 @@ export default function PlayScreen() {
       sourceId,
       targetId,
       pouredColor,
+      count,
       moveX: lipX - lipRestX,
       moveY: lipY - src.y,
       startAngle: dir * startAngle,
@@ -166,6 +176,7 @@ export default function PlayScreen() {
     sourceId,
     targetId,
     pouredColor,
+    count,
     moveX,
     moveY,
     startAngle,
@@ -176,6 +187,7 @@ export default function PlayScreen() {
     sourceId: number;
     targetId: number;
     pouredColor: TubeColor;
+    count: number;
     moveX: number;
     moveY: number;
     startAngle: number;
@@ -206,37 +218,39 @@ export default function PlayScreen() {
       growAnim.setValue(0);
       streamAnim.setValue(0);
       setStreamPos(stream);
-      setPourFx({ sourceId, targetId, color: pouredColor });
+      setPourFx({ sourceId, targetId, color: pouredColor, count });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
       // 2. The stream falls from the lip; the source drains and tips further while the target fills.
+      //    More segments take proportionally longer to pour.
+      const pourMs = 260 + count * 220;
       Animated.parallel([
         Animated.timing(streamAnim, { toValue: 1, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }),
         Animated.timing(rotate[sourceId], {
           toValue: endAngle,
-          duration: 520,
+          duration: pourMs + 40,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
-        Animated.timing(shrinkAnim, { toValue: 1, duration: 480, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(shrinkAnim, { toValue: 1, duration: pourMs, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
         Animated.sequence([
           Animated.delay(120),
-          Animated.timing(growAnim, { toValue: 1, duration: 420, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+          Animated.timing(growAnim, { toValue: 1, duration: pourMs - 60, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
         ]),
       ]).start(() => {
         // 3. The stream's tail drops into the target.
         Animated.timing(streamAnim, { toValue: 2, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
           setTubes((prev) => {
             const next = prev.map((s) => [...s]);
-            next[sourceId].pop();
-            next[targetId].push(pouredColor);
+            next[sourceId].splice(-count, count);
+            for (let i = 0; i < count; i++) next[targetId].push(pouredColor);
             return next;
           });
           if (recordHistory) {
-            setHistory((h) => [...h, { source: sourceId, target: targetId, color: pouredColor }]);
+            setHistory((h) => [...h, { source: sourceId, target: targetId, color: pouredColor, count }]);
           }
           setMoves((m) => m + 1);
-          showToast(`Poured ${pouredColor}!`, 'opacity');
+          showToast(count > 1 ? `Poured ${count}× ${pouredColor}!` : `Poured ${pouredColor}!`, 'opacity');
           setPourFx(null);
           setStreamPos(null);
 
@@ -327,8 +341,8 @@ export default function PlayScreen() {
       const last = h[h.length - 1];
       setTubes((prev) => {
         const next = prev.map((s) => [...s]);
-        next[last.target].pop();
-        next[last.source].push(last.color);
+        next[last.target].splice(-last.count, last.count);
+        for (let i = 0; i < last.count; i++) next[last.source].push(last.color);
         return next;
       });
       setMoves((m) => Math.max(0, m - 1));
@@ -455,6 +469,7 @@ export default function PlayScreen() {
                         shrinkAnim={isPourSource ? shrinkAnim : undefined}
                         growAnim={isPourTarget ? growAnim : undefined}
                         growColor={isPourTarget ? pourFx?.color : undefined}
+                        pourCount={pourFx?.count}
                       />
                     </Pressable>
                   </Animated.View>
