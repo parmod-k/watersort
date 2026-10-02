@@ -36,10 +36,14 @@ export default function Tube({
   pourCount = 1,
   hiddenCount = 0,
 }: Props) {
-  const slotHeight = height / capacity;
+  // Liquid fills the glass inside its border (3) and padding (3) on each end.
+  const slotHeight = (height - 12) / capacity;
   const isFull = colorsStack.length === capacity;
   const allSame = isFull && colorsStack.every((c) => c === colorsStack[0]);
   const glowing = complete || allSame;
+  // Rounded capsule: soft shoulders at the mouth, a fuller curve at the base.
+  const topRadius = Math.min(20, width * 0.37);
+  const bottomRadius = Math.min(24, width * 0.42);
 
   return (
     <View
@@ -48,24 +52,33 @@ export default function Tube({
         {
           width,
           height,
-          borderRadius: width / 2,
-          borderTopLeftRadius: 10,
-          borderTopRightRadius: 10,
+          borderTopLeftRadius: topRadius,
+          borderTopRightRadius: topRadius,
+          borderBottomLeftRadius: bottomRadius,
+          borderBottomRightRadius: bottomRadius,
         },
         selected && styles.selectedShell,
-        glowing && styles.glowShell,
+        glowing && !selected && styles.glowShell,
       ]}
     >
-      {/* rim */}
-      <View style={[styles.rim, { width: width + 8, left: -4 }]} />
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.06)', 'rgba(200,230,255,0.2)']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: topRadius }]}
+      />
+      {/* neck lip */}
+      <View style={[styles.lip, { width: width * 0.6, left: width * 0.2 - 3 }, selected && styles.lipSelected]} />
 
       <View
         style={[
           styles.inner,
           {
-            borderRadius: width / 2 - 3,
-            borderTopLeftRadius: 8,
-            borderTopRightRadius: 8,
+            borderTopLeftRadius: topRadius - 4,
+            borderTopRightRadius: topRadius - 4,
+            borderBottomLeftRadius: bottomRadius - 4,
+            borderBottomRightRadius: bottomRadius - 4,
           },
         ]}
       >
@@ -121,12 +134,13 @@ export default function Tube({
         </View>
       </View>
 
-      {/* glass specular highlights */}
+      {/* front gloss reflection stripe */}
       <LinearGradient
-        colors={['rgba(255,255,255,0.4)', 'rgba(255,255,255,0.15)', 'rgba(255,255,255,0)']}
-        style={[styles.specularLeft, { height: height - 16 }]}
+        pointerEvents="none"
+        colors={['rgba(255,255,255,0.75)', 'rgba(255,255,255,0.15)', 'rgba(255,255,255,0)']}
+        locations={[0, 0.8, 1]}
+        style={[styles.specularLeft, { height: height * 0.86, width: Math.max(4, width * 0.11) }]}
       />
-      <View style={[styles.specularRight, { height: height - 24 }]} />
     </View>
   );
 }
@@ -134,35 +148,44 @@ export default function Tube({
 const styles = StyleSheet.create({
   shell: {
     padding: 3,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
     shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
   selectedShell: {
-    shadowColor: '#00E5FF',
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
+    borderColor: '#FEF08A',
+    shadowColor: '#FDE047',
+    shadowOpacity: 0.95,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
   },
   glowShell: {
+    borderColor: '#BBF7D0',
     shadowColor: '#10E599',
-    shadowOpacity: 0.5,
-    shadowRadius: 18,
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
   },
-  rim: {
+  lip: {
     position: 'absolute',
-    top: -6,
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    alignSelf: 'center',
+    top: -9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderWidth: 2,
+    borderColor: 'rgba(220,235,255,0.95)',
+    zIndex: 10,
   },
+  lipSelected: { backgroundColor: '#FEF9C3', borderColor: '#FDE047' },
   inner: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: 'rgba(10,12,35,0.5)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'flex-end',
   },
   liquidColumn: {
@@ -179,7 +202,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: 'rgba(0,0,0,0.04)',
   },
   hiddenMark: {
     position: 'absolute',
@@ -190,27 +213,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.18)',
+    borderTopColor: 'rgba(255,255,255,0.25)',
   },
-  hiddenText: { color: 'rgba(255,255,255,0.75)', fontFamily: fontFamily.labelLg },
+  hiddenText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.black,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   meniscus: {
-    height: 4,
+    height: 3,
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.4)',
   },
   specularLeft: {
     position: 'absolute',
-    top: 8,
-    left: 8,
-    width: 6,
-    borderRadius: 3,
-  },
-  specularRight: {
-    position: 'absolute',
-    top: 12,
-    right: 8,
-    width: 2,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    top: 6,
+    left: 4,
+    borderRadius: 4,
+    zIndex: 8,
   },
 });

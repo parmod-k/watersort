@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import GameHeader from '../../components/GameHeader';
-import GlassPill from '../../components/ui/GlassPill';
-import GradientButton from '../../components/ui/GradientButton';
+import Panel from '../../components/ui/Panel';
+import Pill from '../../components/ui/Pill';
+import GradientButton, { ButtonVariant } from '../../components/ui/GradientButton';
 import Tube from '../../components/game/Tube';
-import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
+import { artTextShadow, colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 const tabs = ['Vial Shapes', 'Fluid Styles', 'Stoppers'];
@@ -21,13 +22,15 @@ type VialItem = {
 };
 
 const vials: VialItem[] = [
-  { id: '1', name: 'Standard Cylinder', sub: 'Default Classic', tag: 'Equipped', tagColor: colors.primaryContainer, cta: 'In Use', ctaKind: 'equipped' },
-  { id: '2', name: 'Alchemist Flask', sub: 'Erlenmeyer Core', tag: '250ml', tagColor: colors.onSurfaceVariant, cta: 'Equip', ctaKind: 'equip' },
-  { id: '3', name: 'Potion Bottle', sub: 'Curved Witching Phial', tag: 'Cork Stopper', tagColor: colors.amber, cta: 'Equip', ctaKind: 'equip' },
-  { id: '4', name: 'Galaxy Shards', sub: '4/5 Shards', tag: 'Epic Tier', tagColor: colors.secondary, cta: '500 Coins', ctaKind: 'locked' },
-  { id: '5', name: 'Cryo Tube', sub: 'Reinforced Chamber', tag: 'Tech', tagColor: colors.onSurfaceVariant, cta: '1,200 Coins', ctaKind: 'locked' },
-  { id: '6', name: 'Prism Crystal', sub: 'Faceted VIP Glow', tag: 'Legendary', tagColor: colors.amber, cta: 'VIP Pass', ctaKind: 'locked' },
+  { id: '1', name: 'Standard Cylinder', sub: 'Default Classic', tag: 'Equipped', tagColor: '#10B981', cta: 'In Use', ctaKind: 'equipped' },
+  { id: '2', name: 'Alchemist Flask', sub: 'Erlenmeyer Core', tag: '250ml', tagColor: '#00B2FE', cta: 'Equip', ctaKind: 'equip' },
+  { id: '3', name: 'Potion Bottle', sub: 'Curved Witching Phial', tag: 'Cork Stopper', tagColor: '#F59E0B', cta: 'Equip', ctaKind: 'equip' },
+  { id: '4', name: 'Galaxy Shards', sub: '4/5 Shards', tag: 'Epic Tier', tagColor: '#A855F7', cta: '500', ctaKind: 'locked' },
+  { id: '5', name: 'Cryo Tube', sub: 'Reinforced Chamber', tag: 'Tech', tagColor: '#00B2FE', cta: '1,200', ctaKind: 'locked' },
+  { id: '6', name: 'Prism Crystal', sub: 'Faceted VIP Glow', tag: 'Legendary', tagColor: '#FF2E93', cta: 'VIP Pass', ctaKind: 'locked' },
 ];
+
+const CTA_VARIANT: Record<VialItem['ctaKind'], ButtonVariant> = { equipped: 'cream', equip: 'green', locked: 'gold' };
 
 export default function ThemesScreen() {
   const [tab, setTab] = useState(0);
@@ -45,17 +48,14 @@ export default function ThemesScreen() {
         <View style={styles.tabsRow}>
           {tabs.map((t, i) => (
             <Pressable key={t} onPress={() => setTab(i)}>
-              <GlassPill
-                tint={i === tab ? 'glow' : 'low'}
-                style={[styles.tabPill, i === tab && styles.tabPillActive]}
-              >
+              <Pill variant={i === tab ? 'purple' : 'cream'} radius={radii.full} style={styles.tabPill}>
                 <Text style={[styles.tabText, i === tab && styles.tabTextActive]}>{t}</Text>
-              </GlassPill>
+              </Pill>
             </Pressable>
           ))}
         </View>
 
-        <GlassPill tint="low" style={styles.previewCard} radius={radii.lg}>
+        <Panel style={styles.previewCard} radius={28}>
           <View style={styles.previewTop}>
             <View style={styles.liveRow}>
               <View style={styles.liveDot} />
@@ -65,7 +65,7 @@ export default function ThemesScreen() {
               <Text style={styles.editionText}>Standard Edition</Text>
             </View>
           </View>
-          <View style={styles.previewTubeWrap}>
+          <View style={styles.previewStage}>
             <Tube
               colorsStack={['cyan', 'purple', 'yellow']}
               capacity={4}
@@ -78,82 +78,64 @@ export default function ThemesScreen() {
               <Text style={styles.previewTitle}>Standard Cylinder</Text>
               <Text style={styles.previewSub}>Classic balanced acoustic crystal</Text>
             </View>
-            <GradientButton
-              label="Try in Game"
-              icon="sports-esports"
-              height={40}
-              colorsArr={[colors.surfaceContainerHighest, colors.surfaceContainerHighest, colors.surfaceContainerHighest]}
-              edgeColor="#000000"
-              textColor={colors.onSurface}
-            />
+            <GradientButton label="Try in Game" icon="sports-esports" variant="purple" height={46} />
           </View>
-        </GlassPill>
+        </Panel>
 
         <View style={styles.sectionHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <MaterialIcons name="category" size={16} color={colors.onSurfaceVariant} />
+            <MaterialIcons name="category" size={18} color={colors.goldPale} style={styles.headerIcon} />
             <Text style={styles.sectionTitle}>Vial Collections</Text>
           </View>
           <Text style={styles.sectionMeta}>3 / 6 Unlocked</Text>
         </View>
 
-        <View style={styles.grid}>
+        <View style={[styles.grid, { gap: gridGap }]}>
           {vials.map((v) => (
-            <GlassPill key={v.id} tint="low" style={[styles.card, { width: cardW }]} radius={radii.md}>
+            <Panel key={v.id} style={[styles.card, { width: cardW }]} radius={22}>
               {v.tag && (
-                <Text style={[styles.cardTag, { color: v.tagColor }]} numberOfLines={1}>
-                  {v.ctaKind === 'equipped' ? '✓ ' : ''}
-                  {v.tag}
-                </Text>
+                <View style={[styles.cardTag, { backgroundColor: v.tagColor }]}>
+                  <Text style={styles.cardTagText} numberOfLines={1}>
+                    {v.ctaKind === 'equipped' ? '✓ ' : ''}
+                    {v.tag}
+                  </Text>
+                </View>
               )}
               <View style={styles.cardTubeWrap}>
-                <Tube colorsStack={['cyan']} capacity={2} width={40} height={90} />
+                <Tube colorsStack={['cyan']} capacity={2} width={40} height={90} selected={v.ctaKind === 'equipped'} />
               </View>
               <Text style={styles.cardName} numberOfLines={1}>
                 {v.name}
               </Text>
-              <Text style={styles.cardSub} numberOfLines={1}>{v.sub}</Text>
-              {v.ctaKind === 'equipped' ? (
-                <View style={styles.inUsePill}>
-                  <MaterialIcons name="check" size={14} color={colors.onSurfaceVariant} />
-                  <Text style={styles.inUseText}>In Use</Text>
-                </View>
-              ) : (
-                <GradientButton
-                  label={v.cta}
-                  height={34}
-                  colorsArr={
-                    v.ctaKind === 'equip'
-                      ? [colors.primaryFixedDim, colors.primaryContainer, colors.primaryFixed]
-                      : [colors.surfaceContainerHighest, colors.surfaceContainerHighest, colors.surfaceContainerHighest]
-                  }
-                  edgeColor={v.ctaKind === 'equip' ? '#009BB0' : '#000'}
-                  textColor={v.ctaKind === 'equip' ? colors.onPrimaryFixed : colors.onSurface}
-                />
-              )}
-            </GlassPill>
+              <Text style={styles.cardSub} numberOfLines={1}>
+                {v.sub}
+              </Text>
+              <GradientButton
+                label={v.cta}
+                icon={v.ctaKind === 'equipped' ? 'check' : v.ctaKind === 'locked' && v.cta !== 'VIP Pass' ? 'monetization-on' : undefined}
+                variant={CTA_VARIANT[v.ctaKind]}
+                height={40}
+                compact
+                fullWidth
+                disabled={v.ctaKind === 'equipped'}
+                style={{ marginTop: 6 }}
+              />
+            </Panel>
           ))}
         </View>
 
-        <GlassPill tint="glow" style={styles.treasuryBar} radius={radii.full}>
-          <View style={styles.treasuryRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <MaterialIcons name="monetization-on" size={18} color={colors.amber} />
-              <View>
-                <Text style={styles.treasuryLabel}>TREASURY</Text>
-                <Text style={styles.treasuryValue}>1,450</Text>
-              </View>
+        <Panel variant="purple" radius={radii.full} style={styles.treasuryBar}>
+          <View style={styles.treasuryLeft}>
+            <View style={styles.coinDisk}>
+              <MaterialIcons name="monetization-on" size={22} color={colors.goldRim} />
             </View>
-            <GradientButton
-              label="Watch for +50 Shards"
-              icon="play-circle-filled"
-              height={40}
-              colorsArr={[colors.secondaryContainer, colors.violet, colors.secondaryContainer]}
-              edgeColor="#6D019C"
-              textColor="#fff"
-            />
+            <View>
+              <Text style={styles.treasuryLabel}>TREASURY</Text>
+              <Text style={styles.treasuryValue}>1,450</Text>
+            </View>
           </View>
-        </GlassPill>
+          <GradientButton label="Watch for +50" icon="play-circle-filled" variant="gold" height={44} compact={isCompact} />
+        </Panel>
         <View style={{ height: 24 }} />
       </ScrollView>
     </View>
@@ -161,50 +143,84 @@ export default function ThemesScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: 24 },
-  tabsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.lg },
-  tabPill: { paddingHorizontal: 14, paddingVertical: 8 },
-  tabPillActive: { borderColor: colors.primaryContainer },
-  tabText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelMd, fontSize: 12 },
-  tabTextActive: { color: colors.primaryContainer },
+  screen: { flex: 1 },
+  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: 24 },
+  tabsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md },
+  tabPill: { paddingHorizontal: 14, paddingVertical: 7 },
+  tabText: { color: colors.inkSoft, fontFamily: fontFamily.extraBold, fontSize: 13 },
+  tabTextActive: { color: '#FFFFFF' },
 
-  previewCard: { padding: 16, marginBottom: spacing.xl },
-  previewTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  previewCard: { padding: 14, marginBottom: spacing.lg },
+  previewTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.cyan },
-  liveText: { color: colors.primary, fontFamily: fontFamily.labelSm, fontSize: 10, letterSpacing: 1 },
-  editionPill: { backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  editionText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 10 },
-  previewTubeWrap: { alignItems: 'center', paddingVertical: 20 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.guava },
+  liveText: { color: colors.guava, fontFamily: fontFamily.black, fontSize: 11, letterSpacing: 1 },
+  editionPill: { backgroundColor: colors.creamEdge, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  editionText: { color: colors.inkSoft, fontFamily: fontFamily.bold, fontSize: 11 },
+  // A sky-blue lagoon well so the clear glass reads against the cream card.
+  previewStage: {
+    alignItems: 'center',
+    paddingTop: 26,
+    paddingBottom: 18,
+    borderRadius: 20,
+    backgroundColor: '#38BDF8',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    marginBottom: 12,
+  },
   previewBottom: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  previewTitle: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 17 },
-  previewSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 12, marginTop: 2 },
+  previewTitle: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 18 },
+  previewSub: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 12, marginTop: 2 },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  sectionTitle: { color: colors.onSurface, fontFamily: fontFamily.labelLg, fontSize: 14 },
-  sectionMeta: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
+  headerIcon: artTextShadow,
+  sectionTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 17, ...artTextShadow },
+  sectionMeta: { color: colors.onArtGold, fontFamily: fontFamily.black, fontSize: 12, ...artTextShadow },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: spacing.xl },
-  card: { padding: 12, gap: 6 },
-  cardTag: { fontFamily: fontFamily.labelSm, fontSize: 10, letterSpacing: 0.3 },
-  cardTubeWrap: { alignItems: 'center', paddingVertical: 10 },
-  cardName: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 14 },
-  cardSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 11 },
-  inUsePill: {
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing.lg },
+  card: { padding: 10, gap: 2 },
+  cardTag: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    maxWidth: '100%',
+  },
+  cardTagText: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 10 },
+  cardTubeWrap: {
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 10,
+    marginVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#7DD3FC',
+  },
+  cardName: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 14 },
+  cardSub: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 11 },
+
+  treasuryBar: {
+    paddingVertical: 8,
+    paddingLeft: 10,
+    paddingRight: 8,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  treasuryLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  coinDisk: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.goldPale,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 999,
-    paddingVertical: 8,
-    marginTop: 4,
   },
-  inUseText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
-
-  treasuryBar: { padding: 12 },
-  treasuryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  treasuryLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 9, letterSpacing: 0.5 },
-  treasuryValue: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 15 },
+  treasuryLabel: { color: '#E9D5FF', fontFamily: fontFamily.black, fontSize: 9, letterSpacing: 1 },
+  treasuryValue: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 17 },
 });

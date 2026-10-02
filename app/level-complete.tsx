@@ -6,8 +6,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Tube from '../components/game/Tube';
+import Panel from '../components/ui/Panel';
 import GradientButton from '../components/ui/GradientButton';
-import { colors, fontFamily, liquidOrder, radii, spacing } from '../theme/tokens';
+import IconButton from '../components/ui/IconButton';
+import { artTextShadow, colors, fontFamily, liquidOrder, spacing, titleTextShadow } from '../theme/tokens';
 import { playLevel } from '../game/progress';
 import { SCORE_MAX } from '../game/scoring';
 import { useResponsive } from '../theme/responsive';
@@ -57,41 +59,41 @@ export default function LevelCompleteScreen() {
 
   return (
     <View style={styles.backdrop}>
-      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={[styles.centerWrap, { paddingHorizontal: gutter }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.sheet, (isCompact || isShort) && { padding: 18 }]}>
+          <Panel style={[styles.sheet, (isCompact || isShort) && { padding: 16 }]} radius={36} rim={6}>
             <View style={styles.badgeRow}>
-              <MaterialIcons name="auto-awesome" size={14} color={colors.onSurface} />
+              <MaterialIcons name="auto-awesome" size={14} color="#FFFFFF" />
               <Text style={styles.badgeText}>
                 {stars === 3 ? 'PERFECT SORT' : 'SORTED'}
                 {usedUndo || usedExtra ? '' : ' · NO POWER-UPS'}
               </Text>
             </View>
 
-            <Text style={[styles.title, isCompact && { fontSize: 26 }]}>LEVEL {level}</Text>
-            <Text style={[styles.cleared, isCompact && { fontSize: 26 }]}>CLEARED!</Text>
+            <Text style={[styles.title, isCompact && { fontSize: 28 }]}>LEVEL {level}</Text>
+            <Text style={[styles.cleared, isCompact && { fontSize: 34 }]}>CLEARED!</Text>
 
-            <View style={[styles.starsRow, isShort && { marginTop: 12 }]}>
-              <MaterialIcons name="star" size={40} color={stars >= 1 ? colors.amber : 'rgba(255,209,59,0.2)'} />
+            <View style={[styles.starsRow, isShort && { marginTop: 8 }]}>
+              <MaterialIcons name="star" size={44} color={stars >= 1 ? colors.goldPale : '#E7DCC6'} style={styles.star} />
               <View style={styles.starCenterWrap}>
-                <MaterialIcons name="star" size={64} color={stars >= 2 ? colors.amber : 'rgba(255,209,59,0.2)'} />
+                <MaterialIcons name="star" size={70} color={stars >= 2 ? colors.goldPale : '#E7DCC6'} style={styles.star} />
               </View>
-              <MaterialIcons name="star" size={40} color={stars >= 3 ? colors.amber : 'rgba(255,209,59,0.2)'} />
+              <MaterialIcons name="star" size={44} color={stars >= 3 ? colors.goldPale : '#E7DCC6'} style={styles.star} />
             </View>
-            <Text style={[styles.starsLabel, isShort && { marginBottom: 14 }]}>
+            <Text style={[styles.starsLabel, isShort && { marginBottom: 12 }]}>
               {stars} / 3 Stars Earned · {moves <= par ? 'Under Target Moves' : 'Over Target Moves'}
             </Text>
 
-            <View style={styles.card}>
+            <View style={styles.purityCard}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardHeaderLabel}>LABORATORY PURITY</Text>
+                <Text style={styles.purityHeader}>LABORATORY PURITY</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <MaterialIcons name="verified" size={14} color={colors.primaryContainer} />
-                  <Text style={styles.cardHeaderMeta}>100% Sorted</Text>
+                  <MaterialIcons name="verified" size={14} color="#FFFFFF" />
+                  <Text style={styles.purityMeta}>100% Sorted</Text>
                 </View>
               </View>
               <View style={styles.purityRow}>
@@ -101,7 +103,8 @@ export default function LevelCompleteScreen() {
                       colorsStack={[p.color, p.color, p.color, p.color]}
                       capacity={4}
                       width={isCompact ? 32 : 40}
-                      height={isCompact || isShort ? 80 : 100}
+                      height={isCompact || isShort ? 84 : 104}
+                      complete
                     />
                     <Text style={styles.purityLabel}>{p.name}</Text>
                   </View>
@@ -112,8 +115,8 @@ export default function LevelCompleteScreen() {
             <View style={styles.card}>
               <View style={styles.statRow}>
                 <View style={styles.statLeft}>
-                  <View style={styles.statIcon}>
-                    <MaterialIcons name="swap-vert" size={18} color={colors.cyan} />
+                  <View style={[styles.statIcon, { backgroundColor: colors.lagoon }]}>
+                    <MaterialIcons name="swap-vert" size={18} color="#FFFFFF" />
                   </View>
                   <View style={{ flexShrink: 1 }}>
                     <Text style={styles.statTitle}>Moves Used</Text>
@@ -130,8 +133,8 @@ export default function LevelCompleteScreen() {
               <View style={styles.divider} />
               <View style={styles.statRow}>
                 <View style={styles.statLeft}>
-                  <View style={styles.statIcon}>
-                    <MaterialIcons name="monetization-on" size={18} color={colors.amber} />
+                  <View style={[styles.statIcon, { backgroundColor: colors.gold }]}>
+                    <MaterialIcons name="monetization-on" size={18} color="#FFFFFF" />
                   </View>
                   <View style={{ flexShrink: 1 }}>
                     <Text style={styles.statTitle}>Victory Coins</Text>
@@ -139,7 +142,7 @@ export default function LevelCompleteScreen() {
                   </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.statValue, { color: colors.amber }]}>+{coins}</Text>
+                  <Text style={[styles.statValue, { color: colors.goldRim }]}>+{coins}</Text>
                   <Text style={styles.statValueSub}>Total</Text>
                 </View>
               </View>
@@ -147,19 +150,19 @@ export default function LevelCompleteScreen() {
               <View style={{ gap: 6 }}>
                 <View style={styles.rowBetween}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <MaterialIcons name="leaderboard" size={16} color={colors.secondary} />
-                    <Text style={styles.themeUnlockText}>Leaderboard Score</Text>
+                    <MaterialIcons name="leaderboard" size={16} color={colors.purple} />
+                    <Text style={styles.scoreTitle}>Leaderboard Score</Text>
                   </View>
-                  <Text style={styles.themeUnlockMeta}>
+                  <Text style={styles.scoreMeta}>
                     {score} / {scoreMax}
                   </Text>
                 </View>
                 <View style={styles.progressTrack}>
                   <LinearGradient
-                    colors={[colors.violet, colors.cyan]}
+                    colors={[colors.purpleLight, colors.purple]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={[styles.progressFill, { width: `${Math.round((score / scoreMax) * 100)}%` }]}
+                    style={[styles.progressFill, { width: `${Math.max(4, Math.round((score / scoreMax) * 100))}%` }]}
                   />
                 </View>
                 <Text style={styles.scoreBreakdown}>
@@ -169,132 +172,131 @@ export default function LevelCompleteScreen() {
               </View>
             </View>
 
-            <GradientButton label="Next Level" icon="arrow-forward" fullWidth onPress={() => goTo(level + 1)} />
+            <GradientButton label="Next Level" icon="arrow-forward" fullWidth height={60} onPress={() => goTo(level + 1)} />
             <View style={{ height: 10 }} />
-            <GradientButton
-              label={`Claim 2X Coins (+${coins * 2})`}
-              icon="play-circle-filled"
-              fullWidth
-              colorsArr={[colors.amber, colors.amber, colors.amber]}
-              edgeColor="#B37A00"
-              textColor="#3D2900"
-            />
+            <GradientButton label={`Claim 2X Coins (+${coins * 2})`} icon="play-circle-filled" variant="gold" fullWidth />
 
             <View style={styles.footerRow}>
-              <FooterAction icon="replay" label="Replay" onPress={() => goTo(level)} />
-              <FooterAction icon="auto-fix-high" label="Cheers" />
-              <FooterAction icon="share" label="Share" />
+              <IconButton icon="replay" label="Replay" size={44} labelColor={colors.inkSoft} onPress={() => goTo(level)} />
+              <IconButton icon="celebration" label="Cheers" size={44} labelColor={colors.inkSoft} />
+              <IconButton icon="share" label="Share" size={44} labelColor={colors.inkSoft} />
             </View>
 
-            <Pressable style={styles.closeBtn} onPress={() => goTo(level + 1)}>
-              <MaterialIcons name="close" size={20} color={colors.onSurfaceVariant} />
+            <Pressable style={styles.closeBtn} onPress={() => goTo(level + 1)} hitSlop={8}>
+              <MaterialIcons name="close" size={20} color="#FFFFFF" />
             </Pressable>
-          </View>
+          </Panel>
         </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
 
-function FooterAction({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: keyof typeof MaterialIcons.glyphMap;
-  label: string;
-  onPress?: () => void;
-}) {
-  return (
-    <Pressable style={styles.footerAction} onPress={onPress}>
-      <MaterialIcons name={icon} size={18} color={colors.onSurfaceVariant} />
-      <Text style={styles.footerActionText}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(7,8,18,0.8)' },
+  backdrop: { flex: 1, backgroundColor: colors.scrim },
   centerWrap: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg },
-  sheet: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: radii.xl,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
+  sheet: { width: '100%', maxWidth: 480, padding: 22, alignItems: 'center' },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.guava,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 999,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  badgeText: { color: colors.onSurface, fontFamily: fontFamily.labelSm, fontSize: 10, letterSpacing: 0.6 },
-  title: { color: colors.onSurface, fontFamily: fontFamily.displayLg, fontSize: 30, textAlign: 'center' },
+  badgeText: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 11, letterSpacing: 0.6 },
+  title: { color: colors.purple, fontFamily: fontFamily.black, fontSize: 32, textAlign: 'center', ...titleTextShadow('#2A0845') },
   cleared: {
-    color: colors.cyan,
-    fontFamily: fontFamily.displayLg,
-    fontSize: 30,
+    color: colors.green,
+    fontFamily: fontFamily.black,
+    fontSize: 40,
+    lineHeight: 46,
     textAlign: 'center',
-    marginTop: 2,
+    ...titleTextShadow('#064E1C'),
   },
-  starsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 },
-  starCenterWrap: { marginHorizontal: 4 },
+  starsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 14 },
+  starCenterWrap: { marginHorizontal: 2, marginBottom: 6 },
+  star: { textShadowColor: '#B45309', textShadowOffset: { width: 0, height: 3 }, textShadowRadius: 0.5 },
   starsLabel: {
-    color: colors.onSurfaceVariant,
-    fontFamily: fontFamily.labelMd,
+    color: colors.inkSoft,
+    fontFamily: fontFamily.bold,
     fontSize: 12,
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 6,
+    marginBottom: 16,
     textAlign: 'center',
   },
+
+  purityCard: {
+    width: '100%',
+    backgroundColor: '#38BDF8',
+    borderRadius: 24,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    padding: 14,
+    marginBottom: 12,
+  },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  purityHeader: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 11, letterSpacing: 0.5, ...artTextShadow },
+  purityMeta: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 11, ...artTextShadow },
+  purityRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  purityItem: { alignItems: 'center', gap: 8 },
+  purityLabel: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 11, ...artTextShadow },
 
   card: {
     width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    borderRadius: radii.lg,
-    padding: 16,
-    marginBottom: 14,
+    backgroundColor: colors.creamDeep,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: colors.creamEdge,
+    padding: 14,
+    marginBottom: 16,
   },
-  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  cardHeaderLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11, letterSpacing: 0.5 },
-  cardHeaderMeta: { color: colors.primaryContainer, fontFamily: fontFamily.labelSm, fontSize: 11 },
-  purityRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  purityItem: { alignItems: 'center', gap: 8 },
-  purityLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
-
   statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   statLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   statIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statTitle: { color: colors.onSurface, fontFamily: fontFamily.labelLg, fontSize: 13 },
-  statSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 11 },
-  statValue: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 18 },
-  statValueSub: { color: colors.primaryContainer, fontFamily: fontFamily.labelSm, fontSize: 10 },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 12 },
+  statTitle: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 14 },
+  statSub: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 11 },
+  statValue: { color: colors.ink, fontFamily: fontFamily.black, fontSize: 20 },
+  statValueSub: { color: colors.purple, fontFamily: fontFamily.bold, fontSize: 11 },
+  divider: { height: 2, borderRadius: 1, backgroundColor: colors.creamEdge, marginVertical: 10 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  themeUnlockText: { color: colors.onSurface, fontFamily: fontFamily.labelMd, fontSize: 12 },
-  scoreBreakdown: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 10 },
-  themeUnlockMeta: { color: colors.secondary, fontFamily: fontFamily.labelSm, fontSize: 11 },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.4)', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 3 },
+  scoreTitle: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 13 },
+  scoreMeta: { color: colors.purple, fontFamily: fontFamily.black, fontSize: 12 },
+  scoreBreakdown: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 10 },
+  progressTrack: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.creamEdge,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 5 },
 
-  footerRow: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 16 },
-  footerAction: { alignItems: 'center', gap: 4 },
-  footerActionText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
-
-  closeBtn: { position: 'absolute', top: 12, right: 12, padding: 6 },
+  footerRow: { flexDirection: 'row', justifyContent: 'center', gap: 28, marginTop: 18 },
+  closeBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.coral,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

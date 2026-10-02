@@ -8,13 +8,14 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { router, useIsFocused } from 'expo-router';
 import GameHeader from '../../components/GameHeader';
-import GlassPill from '../../components/ui/GlassPill';
+import Panel from '../../components/ui/Panel';
+import Pill from '../../components/ui/Pill';
 import IconButton from '../../components/ui/IconButton';
-import GradientButton from '../../components/ui/GradientButton';
 import Tube, { TubeColor } from '../../components/game/Tube';
 import { colors, fontFamily, liquidGradients, spacing } from '../../theme/tokens';
 import {
@@ -33,6 +34,12 @@ import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 /** Upper bound on bottles on the board (largest level plus the extra-bottle power-up). */
 const MAX_TUBES = 20;
 const HINTS_PER_LEVEL = 3;
+/** Inner padding of the frosted board frame (the top leaves room for bottle lips and sparkles). */
+const BOARD_PAD = { x: 14, top: 24, bottom: 16 };
+/** Distance from a bottle's outer edge to its liquid (glass border plus inner padding). */
+const GLASS_INSET = 6;
+
+type ToastTone = 'info' | 'alert';
 
 type Move = { source: number; target: number; color: TubeColor; count: number };
 
@@ -71,7 +78,9 @@ export default function PlayScreen() {
   // Seconds spent on this board; only counts while the Play tab is visible and unsolved.
   const [seconds, setSeconds] = useState(0);
   const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
-  const [toast, setToast] = useState<{ text: string; icon: keyof typeof MaterialIcons.glyphMap } | null>(null);
+  const [toast, setToast] = useState<{ text: string; icon: keyof typeof MaterialIcons.glyphMap; tone: ToastTone } | null>(
+    null,
+  );
 
   const isAnimating = useRef(false);
   const solvedRef = useRef(false);
@@ -79,9 +88,10 @@ export default function PlayScreen() {
   // Resting (untransformed) layouts, used to aim the pour precisely.
   const tubeLayouts = useRef<Array<{ x: number; y: number } | undefined>>([]);
   const rowLayouts = useRef<Array<{ x: number; y: number } | undefined>>([]);
+  const boardOffset = useRef<{ x: number; y: number } | null>(null);
   const anim = useRef(Array.from({ length: MAX_TUBES }, () => new Animated.ValueXY({ x: 0, y: 0 }))).current;
   const rotate = useRef(Array.from({ length: MAX_TUBES }, () => new Animated.Value(0))).current;
-  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastPop = useRef(new Animated.Value(1)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const shrinkAnim = useRef(new Animated.Value(0)).current;
@@ -92,10 +102,20 @@ export default function PlayScreen() {
   // The tube currently tilting, and which lip it pivots on (1 = right lip, -1 = left lip).
   const [tilt, setTilt] = useState<{ id: number; dir: 1 | -1 } | null>(null);
 
-  const { isCompact, isTablet, isWide, isShort, gutter } = useResponsive();
+  const { width, isCompact, isTablet, isWide, isShort, gutter } = useResponsive();
+  // The header only has room for a Moves pill on wider screens; otherwise it moves to the info panel.
+  const movesInHeader = width >= 430;
   const boardScale = isWide ? 1.5 : isTablet ? 1.3 : 1;
-  const layout = stageSize ? boardLayout(tubes.length, stageSize.w, stageSize.h, boardScale) : null;
-  const controlSize = isCompact ? 42 : isTablet ? 56 : 48;
+  const layout = stageSize
+    ? boardLayout(
+        tubes.length,
+        stageSize.w - BOARD_PAD.x * 2,
+        stageSize.h - BOARD_PAD.top - BOARD_PAD.bottom,
+        boardScale,
+      )
+    : null;
+  const controlSize = isCompact ? 46 : isTablet ? 64 : 56;
+  const heroSize = isCompact ? 62 : isTablet ? 84 : 76;
   const completedCount = useMemo(() => tubes.filter(isTubeComplete).length, [tubes]);
 
   function resetBoard() {
@@ -165,14 +185,14 @@ export default function PlayScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tubes]);
 
-  function showToast(text: string, icon: keyof typeof MaterialIcons.glyphMap = 'info') {
-    setToast({ text, icon });
+  /** Flashes a message in the tip banner; it falls back to the level tip after a moment. */
+  function showToast(text: string, icon: keyof typeof MaterialIcons.glyphMap = 'info', tone: ToastTone = 'info') {
+    setToast({ text, icon, tone });
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastOpacity.stopAnimation();
-    Animated.timing(toastOpacity, { toValue: 1, duration: 150, useNativeDriver: true }).start();
-    toastTimer.current = setTimeout(() => {
-      Animated.timing(toastOpacity, { toValue: 0, duration: 250, useNativeDriver: true }).start();
-    }, 1600);
+    toastPop.stopAnimation();
+    toastPop.setValue(0.9);
+    Animated.spring(toastPop, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }).start();
+    toastTimer.current = setTimeout(() => setToast(null), 1800);
   }
 
   function deselectAll(animated = true) {
@@ -209,8 +229,9 @@ export default function PlayScreen() {
     if (!layout) return null;
     const tube = tubeLayouts.current[id];
     const row = rowLayouts.current[Math.floor(id / layout.perRow)];
-    if (!tube || !row) return null;
-    return { x: row.x + tube.x, y: row.y + tube.y };
+    const board = boardOffset.current;
+    if (!tube || !row || !board) return null;
+    return { x: board.x + row.x + tube.x, y: board.y + row.y + tube.y };
   }
 
   function executePour(sourceId: number, targetId: number, recordHistory = true) {
@@ -243,7 +264,7 @@ export default function PlayScreen() {
     const lipY = tgt.y - gap;
 
     // The stream runs from the lip down to the target's current liquid surface.
-    const surfaceY = tgt.y + 3 + (CAPACITY - tubes[targetId].length) * (tubeH / CAPACITY);
+    const surfaceY = tgt.y + GLASS_INSET + (CAPACITY - tubes[targetId].length) * ((tubeH - GLASS_INSET * 2) / CAPACITY);
 
     setTilt({ id: sourceId, dir });
     runPourAnimation({
@@ -394,7 +415,7 @@ export default function PlayScreen() {
     if (canPour(tubes[selected], tubes[id])) {
       executePour(selected, id);
     } else {
-      showToast('Invalid Move!', 'block');
+      showToast('Invalid Move!', 'block', 'alert');
       deselectAll();
     }
   }
@@ -489,148 +510,135 @@ export default function PlayScreen() {
     }
   }
 
+  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  const overTime = seconds > targetSeconds(level.par);
+  const tip = level.mystery
+    ? 'Mystery level: pour off the top to reveal ? layers'
+    : moves === 0
+      ? 'Tap a flask to pick, then tap another to pour!'
+      : `Par ${level.par} moves · ${level.colorCount} colors · ${level.emptyCount} empty`;
+  const movesPill = (
+    <Pill variant="amber" style={styles.movesPill}>
+      <Text style={styles.movesLabel}>MOVES</Text>
+      <Text style={styles.movesValue}>{moves}</Text>
+    </Pill>
+  );
+
   return (
     <View style={styles.screen}>
-      <GameHeader level={levelNum} coins={progress.coins} />
-      <View
-        style={[
-          styles.content,
-          { paddingHorizontal: gutter, paddingTop: isShort ? spacing.sm : spacing.md },
-        ]}
-      >
-        <View style={styles.topRow}>
-          <GlassPill style={styles.movesPill}>
-            <View style={styles.rowCenter}>
-              <MaterialIcons name="touch-app" size={18} color={colors.primaryContainer} />
-              <Text style={styles.movesLabel}>
-                {isCompact ? '' : 'Moves: '}
-                <Text style={styles.movesValue}>{moves}</Text>
-              </Text>
-              <MaterialIcons
-                name="timer"
-                size={15}
-                color={seconds > targetSeconds(level.par) ? colors.amber : colors.onSurfaceVariant}
-                style={{ marginLeft: 4 }}
-              />
-              <Text style={[styles.movesValue, seconds > targetSeconds(level.par) && { color: colors.amber }]}>
-                {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
-              </Text>
-            </View>
-          </GlassPill>
-
-          <GlassPill tint="low" style={styles.completedPill} radius={999}>
-            <View style={styles.rowCenter}>
-              <MaterialIcons name="check-circle" size={14} color={colors.emerald} />
-              <Text style={styles.completedText}>{completedCount}/{level.colorCount}</Text>
-            </View>
-          </GlassPill>
-
-          <Pressable onPress={handleHint}>
-            <GlassPill style={styles.hintPill}>
-              <View style={styles.rowCenter}>
-                <MaterialIcons name="lightbulb" size={18} color="#FACC15" />
-                {!isCompact && <Text style={styles.hintText}>Hint</Text>}
-                <View style={styles.hintBadge}>
-                  <Text style={styles.hintBadgeText}>{hintsLeft}</Text>
-                </View>
-              </View>
-            </GlassPill>
-          </Pressable>
-        </View>
-
-        <GlassPill tint="low" style={[styles.tipBar, isShort && { marginBottom: spacing.sm }]} radius={16}>
-          <View style={styles.tipRow}>
-            <View style={[styles.rowCenter, { flex: 1 }]}>
-              <View style={[styles.tipDot, level.mystery && { backgroundColor: colors.secondary }]} />
-              <Text style={styles.tipText} numberOfLines={1}>
-                {level.mystery
-                  ? 'Mystery level: pour off the top to reveal ? layers'
-                  : `Par ${level.par} moves · ${level.colorCount} colors · ${level.emptyCount} empty`}
-              </Text>
-            </View>
-            <View style={styles.rowCenter}>
-              <MaterialIcons name="vibration" size={18} color={colors.onSurfaceVariant} />
-              <MaterialIcons name="volume-up" size={18} color={colors.onSurfaceVariant} style={{ marginLeft: 8 }} />
-            </View>
-          </View>
-        </GlassPill>
+      <GameHeader level={levelNum} coins={progress.coins} accessory={movesInHeader ? movesPill : undefined} />
+      <View style={[styles.content, { paddingHorizontal: gutter }]}>
+        <Panel style={[styles.infoPanel, isShort && { marginTop: 4 }]} radius={20}>
+          {!movesInHeader && (
+            <>
+              <InfoChip icon="touch-app" tint="#F59E0B" label="Moves" value={String(moves)} />
+              <View style={styles.infoDivider} />
+            </>
+          )}
+          <InfoChip icon="timer" tint={overTime ? '#EF4444' : '#FB7185'} label="Time" value={clock} warn={overTime} />
+          <View style={styles.infoDivider} />
+          <InfoChip icon="check-circle" tint="#10B981" label="Sorted" value={`${completedCount}/${level.colorCount}`} />
+          {movesInHeader && (
+            <>
+              <View style={styles.infoDivider} />
+              {level.mystery ? (
+                <InfoChip icon="help" tint="#A855F7" label="Mystery" value="Reveal ?" />
+              ) : (
+                <InfoChip icon="flag" tint="#00B2FE" label="Par" value={`${level.par} moves`} />
+              )}
+            </>
+          )}
+        </Panel>
 
         <View
-          style={[styles.stage, isShort && { paddingTop: 16 }, layout && { gap: layout.rowGap }]}
+          style={styles.stage}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
             setStageSize({ w: width, h: height });
           }}
         >
-          {layout &&
-            rows.map((ids, rowIdx) => (
-              <View
-                key={rowIdx}
-                style={[
-                  styles.tubeRow,
-                  { gap: layout.gapX },
-                  tilt && Math.floor(tilt.id / layout.perRow) === rowIdx && styles.raised,
-                ]}
-                onLayout={(e) => {
-                  const { x, y } = e.nativeEvent.layout;
-                  rowLayouts.current[rowIdx] = { x, y };
-                }}
-              >
-                {ids.map((id) => {
-                  const stack = tubes[id];
-                  const complete = isTubeComplete(stack);
-                  const isPourSource = pourFx?.sourceId === id;
-                  const isPourTarget = pourFx?.targetId === id;
-                  const isTilting = tilt?.id === id;
-                  return (
-                    <Animated.View
-                      key={id}
-                      onLayout={(e) => {
-                        const { x, y } = e.nativeEvent.layout;
-                        tubeLayouts.current[id] = { x, y };
-                      }}
-                      style={[
-                        isTilting && styles.raised,
-                        {
-                          transform: [
-                            { translateX: anim[id].x },
-                            { translateY: anim[id].y },
-                            {
-                              rotate: rotate[id].interpolate({
-                                inputRange: [-90, 0, 90],
-                                outputRange: ['-90deg', '0deg', '90deg'],
-                              }),
-                            },
-                          ],
-                          // Pivot on the pouring lip so it stays fixed over the target's mouth while tipping.
-                          transformOrigin: (isTilting ? (tilt.dir > 0 ? '100% 0%' : '0% 0%') : '50% 0%') as any,
-                        },
-                      ]}
-                    >
-                      <Pressable onPress={() => handleTubePress(id)} hitSlop={6}>
-                        {complete && (
-                          <View style={styles.sparkleWrap}>
-                            <MaterialIcons name="auto-awesome" size={layout.tubeW < 44 ? 16 : 20} color="#FACC15" />
-                          </View>
-                        )}
-                        <Tube
-                          colorsStack={stack}
-                          width={layout.tubeW}
-                          height={layout.tubeH}
-                          selected={selected === id}
-                          complete={complete}
-                          hiddenCount={hidden[id] ?? 0}
-                          shrinkAnim={isPourSource ? shrinkAnim : undefined}
-                          growAnim={isPourTarget ? growAnim : undefined}
-                          growColor={isPourTarget ? pourFx?.color : undefined}
-                          pourCount={pourFx?.count}
-                        />
-                      </Pressable>
-                    </Animated.View>
-                  );
-                })}
+          {layout && (
+            <View
+              style={[styles.board, { gap: layout.rowGap }]}
+              onLayout={(e) => {
+                const { x, y } = e.nativeEvent.layout;
+                boardOffset.current = { x, y };
+              }}
+            >
+              {/* Frosted glass tray behind the bottles; a sibling so lifted bottles are never clipped. */}
+              <View pointerEvents="none" style={styles.boardFrost}>
+                <BlurView intensity={20} tint="light" style={StyleSheet.absoluteFill} />
               </View>
-            ))}
+              {rows.map((ids, rowIdx) => (
+                <View
+                  key={rowIdx}
+                  style={[
+                    styles.tubeRow,
+                    { gap: layout.gapX },
+                    tilt && Math.floor(tilt.id / layout.perRow) === rowIdx && styles.raised,
+                  ]}
+                  onLayout={(e) => {
+                    const { x, y } = e.nativeEvent.layout;
+                    rowLayouts.current[rowIdx] = { x, y };
+                  }}
+                >
+                  {ids.map((id) => {
+                    const stack = tubes[id];
+                    const complete = isTubeComplete(stack);
+                    const isPourSource = pourFx?.sourceId === id;
+                    const isPourTarget = pourFx?.targetId === id;
+                    const isTilting = tilt?.id === id;
+                    return (
+                      <Animated.View
+                        key={id}
+                        onLayout={(e) => {
+                          const { x, y } = e.nativeEvent.layout;
+                          tubeLayouts.current[id] = { x, y };
+                        }}
+                        style={[
+                          isTilting && styles.raised,
+                          {
+                            transform: [
+                              { translateX: anim[id].x },
+                              { translateY: anim[id].y },
+                              {
+                                rotate: rotate[id].interpolate({
+                                  inputRange: [-90, 0, 90],
+                                  outputRange: ['-90deg', '0deg', '90deg'],
+                                }),
+                              },
+                            ],
+                            // Pivot on the pouring lip so it stays fixed over the target's mouth while tipping.
+                            transformOrigin: (isTilting ? (tilt.dir > 0 ? '100% 0%' : '0% 0%') : '50% 0%') as any,
+                          },
+                        ]}
+                      >
+                        <Pressable onPress={() => handleTubePress(id)} hitSlop={6}>
+                          {complete && (
+                            <View style={styles.sparkleWrap}>
+                              <MaterialIcons name="auto-awesome" size={layout.tubeW < 44 ? 16 : 20} color="#FDE047" />
+                            </View>
+                          )}
+                          <Tube
+                            colorsStack={stack}
+                            width={layout.tubeW}
+                            height={layout.tubeH}
+                            selected={selected === id}
+                            complete={complete}
+                            hiddenCount={hidden[id] ?? 0}
+                            shrinkAnim={isPourSource ? shrinkAnim : undefined}
+                            growAnim={isPourTarget ? growAnim : undefined}
+                            growColor={isPourTarget ? pourFx?.color : undefined}
+                            pourCount={pourFx?.count}
+                          />
+                        </Pressable>
+                      </Animated.View>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          )}
 
           {pourFx && streamPos && (
             <View
@@ -664,86 +672,145 @@ export default function PlayScreen() {
           )}
         </View>
 
-        <View style={[styles.controlsRow, isShort && { paddingVertical: spacing.md }, isTablet && styles.controlsRowWide]}>
+        {/* Tip banner; flashes move feedback, then returns to the level tip. */}
+        <Animated.View style={[styles.bannerWrap, { transform: [{ scale: toastPop }] }]}>
+          {toast?.tone === 'alert' ? (
+            <View style={[styles.banner, styles.bannerAlert]}>
+              <MaterialIcons name={toast.icon} size={16} color="#FFE4E6" />
+              <Text style={[styles.bannerText, { color: '#FFE4E6' }]} numberOfLines={2}>
+                {toast.text}
+              </Text>
+            </View>
+          ) : (
+            <LinearGradient
+              colors={['#FBBF24', '#FDE047', '#F59E0B']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.banner}
+            >
+              <MaterialIcons
+                name={toast?.icon ?? (level.mystery ? 'help-outline' : 'beach-access')}
+                size={16}
+                color={colors.goldInk}
+              />
+              <Text style={styles.bannerText} numberOfLines={2}>
+                {toast?.text ?? tip}
+              </Text>
+            </LinearGradient>
+          )}
+        </Animated.View>
+
+        <View style={[styles.dock, isShort && { paddingTop: 8, paddingBottom: 6 }]}>
+          <IconButton icon="undo" label="Undo" onPress={handleUndo} badge={history.length || undefined} size={controlSize} />
+          <IconButton icon="refresh" label="Restart" onPress={handleRestart} size={controlSize} />
+          <IconButton icon="play-arrow" label={isCompact ? 'Demo' : 'Demo Pour'} variant="gold" onPress={handleDemo} size={heroSize} />
           <IconButton
-            icon="undo"
-            onPress={handleUndo}
-            badge={history.length}
-            badgeColor={colors.surfaceContainerHighest}
+            icon="lightbulb"
+            label="Hint"
+            onPress={handleHint}
+            badge={hintsLeft}
+            badgeTone="gold"
             size={controlSize}
+            disabled={hintsLeft === 0}
           />
-          <GradientButton
-            label={isCompact ? 'Demo' : 'Demo Pour'}
-            icon="play-arrow"
-            onPress={handleDemo}
-            compact={isCompact}
-            height={isTablet ? 58 : 52}
-            style={styles.demoButton}
-          />
-          <IconButton icon="refresh" onPress={handleRestart} size={controlSize} />
           <IconButton
-            icon="add"
+            icon="science"
+            label={isCompact ? 'Bottle' : '+ Bottle'}
             onPress={handleAddTube}
-            size={controlSize}
             badge={extraTubeUsed ? undefined : '+1'}
-            badgeColor={colors.secondary}
-            iconColor={colors.onSurface}
+            badgeTone="gold"
+            size={controlSize}
+            disabled={extraTubeUsed}
           />
         </View>
       </View>
+    </View>
+  );
+}
 
-      {toast && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.toast,
-            {
-              bottom: controlSize + (isShort ? 40 : 56),
-              opacity: toastOpacity,
-              transform: [
-                {
-                  translateY: toastOpacity.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
-                },
-              ],
-            },
-          ]}
-        >
-          <MaterialIcons name={toast.icon} size={18} color={colors.primaryContainer} />
-          <Text style={[styles.toastText, { flexShrink: 1 }]} numberOfLines={2}>
-            {toast.text}
-          </Text>
-        </Animated.View>
-      )}
+/** One stat in the cream info panel: a tinted icon tile with a label and value. */
+function InfoChip({
+  icon,
+  tint,
+  label,
+  value,
+  warn = false,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  tint: string;
+  label: string;
+  value: string;
+  warn?: boolean;
+}) {
+  return (
+    <View style={styles.chip}>
+      <View style={[styles.chipIcon, { backgroundColor: tint }]}>
+        <MaterialIcons name={icon} size={16} color="#FFFFFF" />
+      </View>
+      <View style={{ flexShrink: 1 }}>
+        <Text style={styles.chipLabel} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={[styles.chipValue, warn && { color: '#DC2626' }]} numberOfLines={1}>
+          {value}
+        </Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
+  screen: { flex: 1 },
   content: { flex: 1, width: '100%', maxWidth: contentMaxWidth.board, alignSelf: 'center' },
-  rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: spacing.md, flexWrap: 'wrap' },
-  movesPill: { paddingHorizontal: 12, paddingVertical: 8 },
-  movesLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelMd, fontSize: 13 },
-  movesValue: { color: colors.primary, fontFamily: fontFamily.counterNum },
-  completedPill: { paddingHorizontal: 12, paddingVertical: 6 },
-  completedText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 10, letterSpacing: 0.5 },
-  hintPill: { paddingHorizontal: 12, paddingVertical: 8, marginLeft: 'auto' },
-  hintText: { color: colors.onSurface, fontFamily: fontFamily.labelMd, fontSize: 13 },
-  hintBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.secondaryContainer,
+
+  movesPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 36 },
+  movesLabel: { color: colors.goldInk, fontFamily: fontFamily.black, fontSize: 11, letterSpacing: 0.3 },
+  movesValue: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.black,
+    fontSize: 15,
+    textShadowColor: '#92400E',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 0.5,
+  },
+
+  infoPanel: {
+    marginTop: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  infoDivider: { width: 2, height: 28, borderRadius: 1, backgroundColor: 'rgba(245,158,11,0.3)', marginHorizontal: 6 },
+  chip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  chipIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
-  hintBadgeText: { color: colors.onSecondaryContainer, fontSize: 10, fontFamily: fontFamily.labelSm },
-  tipBar: { paddingHorizontal: 14, paddingVertical: 10, marginBottom: spacing.lg },
-  tipRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  tipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
-  tipText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 12, flexShrink: 1 },
-  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 24, position: 'relative' },
+  chipLabel: { color: colors.inkMuted, fontFamily: fontFamily.bold, fontSize: 10, lineHeight: 12 },
+  chipValue: { color: colors.ink, fontFamily: fontFamily.black, fontSize: 14, lineHeight: 17 },
+
+  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative', marginTop: spacing.sm },
+  board: {
+    paddingHorizontal: BOARD_PAD.x,
+    paddingTop: BOARD_PAD.top,
+    paddingBottom: BOARD_PAD.bottom,
+    alignItems: 'center',
+  },
+  boardFrost: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: colors.frost,
+    borderWidth: 2,
+    borderColor: colors.frostEdge,
+  },
   streamBeam: {
     position: 'absolute',
     width: 6,
@@ -755,30 +822,33 @@ const styles = StyleSheet.create({
   streamGradient: { flex: 1, width: '100%' },
   tubeRow: { flexDirection: 'row', justifyContent: 'center' },
   raised: { zIndex: 10, elevation: 16 },
-  sparkleWrap: { position: 'absolute', top: -22, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
-  controlsRow: {
+  sparkleWrap: { position: 'absolute', top: -26, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
+
+  bannerWrap: { marginTop: spacing.sm, alignSelf: 'stretch' },
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    paddingVertical: spacing.lg,
-  },
-  controlsRowWide: { width: '100%', maxWidth: 520, alignSelf: 'center' },
-  demoButton: { flexShrink: 1, minWidth: 0 },
-  toast: {
-    position: 'absolute',
-    alignSelf: 'center',
-    maxWidth: '90%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(53,55,80,0.95)',
+    justifyContent: 'center',
+    gap: 6,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  toastText: { color: colors.onSurface, fontFamily: fontFamily.labelMd, fontSize: 13 },
+  bannerAlert: { backgroundColor: 'rgba(136,19,55,0.92)', borderColor: '#FDA4AF' },
+  bannerText: { color: colors.goldInk, fontFamily: fontFamily.black, fontSize: 13, flexShrink: 1, textAlign: 'center' },
+
+  dock: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-evenly',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+  },
 });

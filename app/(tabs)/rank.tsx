@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import GameHeader from '../../components/GameHeader';
-import GlassPill from '../../components/ui/GlassPill';
-import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
+import Panel from '../../components/ui/Panel';
+import Pill from '../../components/ui/Pill';
+import { artTextShadow, chassis, colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { useProgress } from '../../game/progress';
 import { BoardKind, buildBoard, leagueFor, statsFor } from '../../game/scoring';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
@@ -20,7 +22,13 @@ const BOARD_TITLES: Record<BoardKind, string> = {
   score: 'Efficiency Score',
 };
 
-const PODIUM = [colors.amber, '#C7CEDB', '#D08A55'];
+/** Gold, silver and bronze medal fills for the top three. */
+const PODIUM: [string, string, string][] = [
+  ['#FDE047', '#FBBF24', '#D97706'],
+  ['#F1F5F9', '#CBD5E1', '#94A3B8'],
+  ['#FDBA74', '#EA8A3E', '#B45309'],
+];
+const AVATAR_TINTS = ['#00B2FE', '#FF2E93', '#10B981', '#A855F7', '#F59E0B', '#EF4444'];
 const SHOWN = 5;
 
 function formatValue(kind: BoardKind, e: { level: number; stars: number; score: number }) {
@@ -46,24 +54,19 @@ function Medal({
 }) {
   const done = value >= goal;
   return (
-    <GlassPill tint="low" style={styles.medalCard} radius={radii.md}>
-      <View style={[styles.medalCircle, { borderColor: done ? color : colors.onSurfaceVariant }]}>
-        <MaterialIcons name={icon} size={26} color={done ? color : colors.onSurface} />
+    <Panel style={styles.medalCard} radius={22}>
+      <View style={[styles.medalCircle, { backgroundColor: done ? color : colors.creamEdge }]}>
+        <MaterialIcons name={icon} size={26} color={done ? '#FFFFFF' : colors.inkMuted} />
       </View>
       <Text style={styles.medalName}>{name}</Text>
-      <Text style={[styles.medalTier, { color: done ? color : colors.onSurfaceVariant }]}>
-        {done ? 'Earned' : `${Math.min(value, goal)} / ${goal}`}
+      <Text style={[styles.medalTier, { color: done ? colors.greenInk : colors.inkSoft }]}>
+        {done ? 'Earned!' : `${Math.min(value, goal)} / ${goal}`}
       </Text>
       <Text style={styles.medalDesc}>{desc}</Text>
       <View style={styles.medalTrack}>
-        <View
-          style={[
-            styles.medalFill,
-            { width: `${Math.min(100, (value / goal) * 100)}%`, backgroundColor: done ? color : colors.cyan },
-          ]}
-        />
+        <View style={[styles.medalFill, { width: `${Math.min(100, (value / goal) * 100)}%`, backgroundColor: color }]} />
       </View>
-    </GlassPill>
+    </Panel>
   );
 }
 
@@ -102,10 +105,12 @@ export default function RankScreen() {
     <View style={styles.screen}>
       <GameHeader />
       <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
-        <GlassPill tint="low" style={styles.profileCard} radius={radii.lg}>
+        <Panel style={styles.profileCard}>
           <View style={styles.profileTop}>
             <View style={styles.avatarWrap}>
-              <View style={styles.avatarRing} />
+              <LinearGradient colors={chassis.purple} style={styles.avatarRing}>
+                <MaterialIcons name="person" size={30} color="#FFFFFF" />
+              </LinearGradient>
               <View style={styles.proBadge}>
                 <Text style={styles.proBadgeText}>{league.name.toUpperCase()}</Text>
               </View>
@@ -115,17 +120,19 @@ export default function RankScreen() {
                 {progress.playerName}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="auto-awesome" size={12} color={colors.secondary} />
+                <MaterialIcons name="auto-awesome" size={13} color={colors.purple} />
                 <Text style={styles.playerTitle}>{league.name} Alchemist</Text>
               </View>
             </View>
-            <View style={styles.lvlPill}>
+            <Pill variant="green" radius={radii.full} style={styles.lvlPill}>
               <Text style={styles.lvlPillText}>Lvl {stats.level}</Text>
-            </View>
+            </Pill>
           </View>
 
           <View style={styles.leagueRow}>
-            <MaterialIcons name="shield" size={20} color={colors.primaryContainer} />
+            <View style={styles.leagueIcon}>
+              <MaterialIcons name="shield" size={20} color="#FFFFFF" />
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.leagueTitle}>{league.name} League</Text>
               <Text style={styles.leagueSub}>
@@ -135,42 +142,34 @@ export default function RankScreen() {
               </Text>
             </View>
             <View style={styles.topGlobalPill}>
-              <MaterialIcons name="public" size={12} color={colors.onSurfaceVariant} />
+              <MaterialIcons name="public" size={12} color="#FFFFFF" />
               <Text style={styles.topGlobalText}>Top {topPct}%</Text>
             </View>
           </View>
 
           <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="star" size={16} color={colors.amber} />
-                <Text style={styles.statValue}>{stats.stars}</Text>
-              </View>
-              <Text style={styles.statLabel}>Total Stars</Text>
-            </View>
-            <View style={styles.statBox}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="speed" size={16} color={colors.cyan} />
-                <Text style={styles.statValue}>{avgScore}</Text>
-              </View>
-              <Text style={styles.statLabel}>Avg Level Score</Text>
-            </View>
-            <View style={styles.statBox}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <MaterialIcons name="verified" size={16} color={colors.secondary} />
-                <Text style={styles.statValue}>{stats.perfect}</Text>
-              </View>
-              <Text style={styles.statLabel}>Perfect Sorts</Text>
-            </View>
+            <StatBox icon="star" tint={colors.gold} value={stats.stars} label="Total Stars" />
+            <StatBox icon="speed" tint={colors.lagoon} value={avgScore} label="Avg Level Score" />
+            <StatBox icon="verified" tint={colors.purpleLight} value={stats.perfect} label="Perfect Sorts" />
           </View>
-        </GlassPill>
+        </Panel>
 
         <View style={styles.segmentRow}>
           {segments.map((s, i) => (
             <Pressable key={s.kind} style={{ flex: 1 }} onPress={() => setSegment(i)}>
-              <View style={[styles.segmentPill, i === segment && styles.segmentPillActive]}>
-                <Text numberOfLines={1} style={[styles.segmentText, i === segment && styles.segmentTextActive]}>{s.label}</Text>
-              </View>
+              {i === segment ? (
+                <Pill variant="gold" radius={radii.full} style={styles.segmentPill}>
+                  <Text numberOfLines={1} style={[styles.segmentText, styles.segmentTextActive]}>
+                    {s.label}
+                  </Text>
+                </Pill>
+              ) : (
+                <View style={[styles.segmentPill, styles.segmentIdle]}>
+                  <Text numberOfLines={1} style={styles.segmentText}>
+                    {s.label}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           ))}
         </View>
@@ -178,25 +177,33 @@ export default function RankScreen() {
         <View style={styles.standingsHeader}>
           <Text style={styles.standingsTitle}>{BOARD_TITLES[kind]}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialIcons name="info-outline" size={13} color={colors.secondary} />
+            <MaterialIcons name="info-outline" size={13} color={colors.onArtGold} style={artTextShadow} />
             <Text style={styles.standingsMeta}>Sample rivals · offline</Text>
           </View>
         </View>
 
-        {board.slice(0, SHOWN).map((p) => {
-          const crown = p.rank <= 3 ? PODIUM[p.rank - 1] : undefined;
+        {board.slice(0, SHOWN).map((p, idx) => {
+          const medal = p.rank <= 3 ? PODIUM[p.rank - 1] : undefined;
           return (
-            <GlassPill
+            <Panel
               key={p.name}
-              tint={p.isMe ? 'glow' : 'low'}
-              style={[styles.playerRow, p.isMe && { borderColor: colors.cyan, borderWidth: 1 }]}
-              radius={radii.md}
+              variant={p.isMe ? 'highlight' : 'cream'}
+              style={styles.playerRow}
+              radius={20}
+              rim={3}
             >
-              <View style={[styles.rankBadge, crown && { backgroundColor: 'transparent', borderWidth: 2, borderColor: crown }]}>
-                {crown && <MaterialIcons name="emoji-events" size={10} color={crown} style={styles.crownIcon} />}
-                <Text style={styles.rankNum}>{p.rank}</Text>
+              {medal ? (
+                <LinearGradient colors={medal} style={styles.rankBadge}>
+                  <Text style={[styles.rankNum, { color: colors.goldInk }]}>{p.rank}</Text>
+                </LinearGradient>
+              ) : (
+                <View style={[styles.rankBadge, { backgroundColor: colors.creamEdge }]}>
+                  <Text style={styles.rankNum}>{p.rank}</Text>
+                </View>
+              )}
+              <View style={[styles.playerAvatar, { backgroundColor: AVATAR_TINTS[idx % AVATAR_TINTS.length] }]}>
+                <Text style={styles.playerInitial}>{p.name.charAt(0)}</Text>
               </View>
-              <View style={styles.playerAvatar} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowName} numberOfLines={1}>
                   {p.isMe ? `You (${p.name})` : p.name}
@@ -205,49 +212,51 @@ export default function RankScreen() {
                   Level {p.level} · {p.stars} stars
                 </Text>
               </View>
-              <Text style={styles.rowStars}>{formatValue(kind, p)}</Text>
-            </GlassPill>
+              <Text style={styles.rowValue}>{formatValue(kind, p)}</Text>
+            </Panel>
           );
         })}
 
-        <GlassPill tint="glow" style={styles.meRow} radius={radii.md}>
-          <View style={styles.meBadge}>
+        <Panel variant="purple" style={styles.meRow} radius={20}>
+          <Pill variant="gold" radius={radii.full} style={styles.meBadge}>
             <Text style={styles.meBadgeText}>#{myEntry.rank}</Text>
-          </View>
+          </Pill>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowName} numberOfLines={1}>
+            <Text style={styles.meName} numberOfLines={1}>
               You ({progress.playerName})
             </Text>
             <Text style={styles.mePromoting}>{chase}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.rowStars}>{formatValue(kind, me)}</Text>
-            <Text style={styles.rowXp}>of {board.length} players</Text>
+            <Text style={styles.meValue}>{formatValue(kind, me)}</Text>
+            <Text style={styles.meOf}>of {board.length} players</Text>
           </View>
-        </GlassPill>
+        </Panel>
 
-        <Text style={styles.scoringNote}>
-          Level score: clear +100 · fewest pours up to +100 · time up to +50 · no Undo +50 · no extra bottle +50. Your
-          best score per level counts. Players on the same level share a rank.
-        </Text>
+        <Panel variant="frost" style={styles.scoringNote} radius={18}>
+          <Text style={styles.scoringText}>
+            Level score: clear +100 · fewest pours up to +100 · time up to +50 · no Undo +50 · no extra bottle +50.
+            Your best score per level counts. Players on the same level share a rank.
+          </Text>
+        </Panel>
 
         <View style={styles.sectionHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <MaterialIcons name="military-tech" size={16} color={colors.secondary} />
+            <MaterialIcons name="military-tech" size={18} color={colors.goldPale} style={artTextShadow} />
             <Text style={styles.sectionTitle}>Alchemy Medals</Text>
           </View>
           <Text style={styles.sectionMeta}>{stats.cleared} levels cleared</Text>
         </View>
 
         <View style={styles.medalsRow}>
-          <Medal icon="bolt" name="Speed Pourer" desc="Clear 10 levels in under 45s" value={stats.fast} goal={10} color={colors.amber} />
+          <Medal icon="bolt" name="Speed Pourer" desc="Clear 10 levels in under 45s" value={stats.fast} goal={10} color={colors.gold} />
           <Medal
             icon="psychology"
             name="Pure Genius"
             desc="Clear 30 levels without Undo"
             value={stats.noUndo}
             goal={30}
-            color={colors.secondary}
+            color={colors.purpleLight}
           />
         </View>
         <View style={{ height: 24 }} />
@@ -256,89 +265,193 @@ export default function RankScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: 24 },
+function StatBox({
+  icon,
+  tint,
+  value,
+  label,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  tint: string;
+  value: number;
+  label: string;
+}) {
+  return (
+    <View style={styles.statBox}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <MaterialIcons name={icon} size={18} color={tint} />
+        <Text style={styles.statValue}>{value}</Text>
+      </View>
+      <Text style={styles.statLabel} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
-  profileCard: { padding: 16, marginBottom: spacing.lg, gap: 14 },
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: 24 },
+
+  profileCard: { padding: 14, marginBottom: spacing.md, gap: 12 },
   profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarWrap: { width: 56, height: 56 },
+  avatarWrap: { width: 58, height: 58 },
   avatarRing: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.surfaceContainerHighest,
-    borderWidth: 2,
-    borderColor: colors.cyan,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 3,
+    borderColor: colors.goldPale,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   proBadge: {
     position: 'absolute',
-    bottom: -4,
-    left: 8,
-    backgroundColor: colors.cyan,
+    bottom: -6,
+    alignSelf: 'center',
+    backgroundColor: colors.gold,
     borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  proBadgeText: { color: colors.onPrimary, fontFamily: fontFamily.labelSm, fontSize: 8 },
-  playerName: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 17 },
-  playerTitle: { color: colors.secondary, fontFamily: fontFamily.labelMd, fontSize: 12 },
-  lvlPill: { backgroundColor: colors.surfaceContainerHighest, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  lvlPillText: { color: colors.onSurface, fontFamily: fontFamily.labelSm, fontSize: 11 },
+  proBadgeText: { color: colors.goldInk, fontFamily: fontFamily.black, fontSize: 8 },
+  playerName: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 18 },
+  playerTitle: { color: colors.purple, fontFamily: fontFamily.bold, fontSize: 12 },
+  lvlPill: { paddingHorizontal: 12, paddingVertical: 4 },
+  lvlPillText: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.black,
+    fontSize: 12,
+    textShadowColor: '#064E1C',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 0.5,
+  },
 
   leagueRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 14,
+    backgroundColor: colors.creamDeep,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.creamEdge,
     padding: 10,
   },
-  leagueTitle: { color: colors.onSurface, fontFamily: fontFamily.labelLg, fontSize: 13 },
-  leagueSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 11 },
-  topGlobalPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
-  topGlobalText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 10 },
+  leagueIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: colors.lagoon,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leagueTitle: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 14 },
+  leagueSub: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 11 },
+  topGlobalPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.guava,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  topGlobalText: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 10 },
 
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statBox: { alignItems: 'center', gap: 2, flex: 1 },
-  statValue: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 16 },
-  statLabel: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 10 },
+  statValue: { color: colors.ink, fontFamily: fontFamily.black, fontSize: 18 },
+  statLabel: { color: colors.inkSoft, fontFamily: fontFamily.bold, fontSize: 10 },
 
-  segmentRow: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 999, padding: 4, marginBottom: spacing.lg },
-  segmentPill: { paddingVertical: 8, borderRadius: 999, alignItems: 'center' },
-  segmentPillActive: { backgroundColor: colors.cyan },
-  segmentText: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelMd, fontSize: 12 },
-  segmentTextActive: { color: colors.onPrimary },
+  segmentRow: {
+    flexDirection: 'row',
+    gap: 4,
+    backgroundColor: 'rgba(59,11,117,0.75)',
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: colors.goldPale,
+    padding: 4,
+    marginBottom: spacing.md,
+  },
+  segmentPill: { paddingVertical: 7, alignItems: 'center' },
+  segmentIdle: { borderRadius: 999, borderWidth: 2, borderColor: 'transparent' },
+  segmentText: { color: '#E9D5FF', fontFamily: fontFamily.extraBold, fontSize: 13 },
+  segmentTextActive: { color: colors.goldInk, fontFamily: fontFamily.black },
 
   standingsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  standingsTitle: { color: colors.onSurface, fontFamily: fontFamily.labelLg, fontSize: 13 },
-  standingsMeta: { color: colors.secondary, fontFamily: fontFamily.labelSm, fontSize: 10 },
+  standingsTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 15, ...artTextShadow },
+  standingsMeta: { color: colors.onArtGold, fontFamily: fontFamily.bold, fontSize: 11, ...artTextShadow },
 
-  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, marginBottom: 8 },
-  meRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, marginBottom: spacing.md, borderColor: colors.cyan, borderWidth: 1 },
-  rankBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.surfaceContainerHighest, alignItems: 'center', justifyContent: 'center' },
-  crownIcon: { position: 'absolute', top: -10 },
-  rankNum: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 12 },
-  playerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceContainerHighest },
-  rowName: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 14 },
-  rowMeta: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 11 },
-  rowStars: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 15 },
-  rowXp: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 10 },
-  meBadge: { backgroundColor: colors.cyan, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
-  meBadgeText: { color: colors.onPrimary, fontFamily: fontFamily.counterNum, fontSize: 12 },
-  mePromoting: { color: colors.cyan, fontFamily: fontFamily.labelSm, fontSize: 10 },
-  scoringNote: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 11, lineHeight: 16, marginBottom: spacing.xl },
+  playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
+  rankBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankNum: { color: colors.inkSoft, fontFamily: fontFamily.black, fontSize: 13 },
+  playerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerInitial: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 15 },
+  rowName: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 14 },
+  rowMeta: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 11 },
+  rowValue: { color: colors.purple, fontFamily: fontFamily.black, fontSize: 15 },
+
+  meRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 10, marginBottom: spacing.md },
+  meBadge: { paddingHorizontal: 9, paddingVertical: 3 },
+  meBadgeText: { color: colors.goldInk, fontFamily: fontFamily.black, fontSize: 13 },
+  meName: { color: '#FFFFFF', fontFamily: fontFamily.extraBold, fontSize: 14 },
+  mePromoting: { color: colors.goldLight, fontFamily: fontFamily.bold, fontSize: 11 },
+  meValue: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 16 },
+  meOf: { color: '#E9D5FF', fontFamily: fontFamily.bold, fontSize: 10 },
+
+  scoringNote: { padding: 12, marginBottom: spacing.lg },
+  scoringText: { color: '#FFFFFF', fontFamily: fontFamily.semiBold, fontSize: 11, lineHeight: 16, ...artTextShadow },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  sectionTitle: { color: colors.onSurface, fontFamily: fontFamily.labelLg, fontSize: 14 },
-  sectionMeta: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
+  sectionTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 17, ...artTextShadow },
+  sectionMeta: { color: colors.onArtGold, fontFamily: fontFamily.black, fontSize: 12, ...artTextShadow },
 
   medalsRow: { flexDirection: 'row', gap: 12 },
-  medalCard: { flex: 1, padding: 14, alignItems: 'center', gap: 4 },
-  medalCircle: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  medalName: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 13 },
-  medalTier: { fontFamily: fontFamily.labelSm, fontSize: 11 },
-  medalDesc: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 10, textAlign: 'center' },
-  medalTrack: { height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.4)', width: '100%', marginTop: 6, overflow: 'hidden' },
-  medalFill: { height: '100%', borderRadius: 2 },
+  medalCard: { flex: 1, padding: 12, alignItems: 'center', gap: 3 },
+  medalCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  medalName: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 14 },
+  medalTier: { fontFamily: fontFamily.black, fontSize: 12 },
+  medalDesc: { color: colors.inkSoft, fontFamily: fontFamily.medium, fontSize: 11, textAlign: 'center' },
+  medalTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.creamEdge,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    width: '100%',
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  medalFill: { height: '100%', borderRadius: 4 },
 });

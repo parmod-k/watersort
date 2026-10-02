@@ -4,9 +4,10 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import GameHeader from '../../components/GameHeader';
-import GlassPill from '../../components/ui/GlassPill';
+import Panel from '../../components/ui/Panel';
+import Pill from '../../components/ui/Pill';
 import GradientButton from '../../components/ui/GradientButton';
-import { colors, fontFamily, radii, spacing } from '../../theme/tokens';
+import { artTextShadow, chassis, colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { colorCountFor, isMysteryLevel } from '../../game/levels';
 import { playLevel, useProgress } from '../../game/progress';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
@@ -44,13 +45,25 @@ function levelLabel(level: number) {
 
 function Stars({ count }: { count: number }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 2, marginTop: 2 }}>
+    <View style={styles.starsRow}>
       {[0, 1, 2].map((i) => (
-        <MaterialIcons key={i} name="star" size={i === 1 ? 14 : 12} color={i < count ? '#FFD13B' : 'rgba(255,209,59,0.25)'} />
+        <MaterialIcons
+          key={i}
+          name="star"
+          size={i === 1 ? 18 : 15}
+          color={i < count ? colors.goldPale : 'rgba(255,255,255,0.35)'}
+          style={styles.starIcon}
+        />
       ))}
     </View>
   );
 }
+
+const NODE_LOOKS: Record<LevelState, { fill: [string, string, string]; border: string; rim: string }> = {
+  done: { fill: chassis.green, border: '#FFFFFF', rim: colors.greenRim },
+  current: { fill: chassis.gold, border: '#FFFFFF', rim: colors.goldRim },
+  locked: { fill: ['#C4B5FD', '#8B5CF6', '#6D28D9'], border: 'rgba(255,255,255,0.6)', rim: colors.purpleRim },
+};
 
 export default function StagesScreen() {
   const progress = useProgress();
@@ -87,13 +100,17 @@ export default function StagesScreen() {
     <View style={styles.screen}>
       <GameHeader />
       <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
-        <GlassPill style={styles.chapterCard} radius={radii.lg}>
+        <Panel style={styles.chapterCard}>
           <View style={styles.chapterRow}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-              <MaterialIcons name="science" size={20} color={colors.primaryContainer} />
-              <View>
+            <View style={styles.chapterLeft}>
+              <View style={styles.chapterIcon}>
+                <MaterialIcons name="science" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flexShrink: 1 }}>
                 <Text style={styles.chapterLabel}>CHAPTER {chapter}</Text>
-                <Text style={styles.chapterTitle}>{chapterName(chapter)}</Text>
+                <Text style={styles.chapterTitle} numberOfLines={1}>
+                  {chapterName(chapter)}
+                </Text>
               </View>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
@@ -106,103 +123,108 @@ export default function StagesScreen() {
           </View>
           <View style={styles.progressTrack}>
             <LinearGradient
-              colors={[colors.violet, colors.cyan]}
+              colors={[colors.greenLight, colors.green, colors.greenDeep]}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.progressFill, { width: `${chapterPct}%` }]}
+              end={{ x: 0, y: 1 }}
+              style={[styles.progressFill, { width: `${Math.max(chapterPct, 4)}%` }]}
             />
           </View>
-        </GlassPill>
+        </Panel>
 
-        <GlassPill tint="low" style={styles.trialCard} radius={radii.lg}>
+        <Panel variant="highlight" style={styles.trialCard}>
           <View style={styles.trialTop}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <MaterialIcons name="hourglass-top" size={18} color={colors.secondary} />
-              <Text style={styles.trialTitle} numberOfLines={1}>
-                Daily Alchemist Trial #12
+            <Pill variant="purple" radius={radii.full} style={styles.trialRibbon}>
+              <MaterialIcons name="hourglass-top" size={14} color={colors.goldPale} />
+              <Text style={styles.trialRibbonText} numberOfLines={1}>
+                Daily Trial #12
               </Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <MaterialIcons name="schedule" size={14} color={colors.tertiaryFixed} />
-              <Text style={styles.trialTimer}>04:22:15</Text>
+            </Pill>
+            <View style={styles.trialTimer}>
+              <MaterialIcons name="schedule" size={14} color={colors.guava} />
+              <Text style={styles.trialTimerText}>04:22:15</Text>
             </View>
           </View>
           <Text style={styles.trialDesc}>Beat in under 10 liquid pours</Text>
           <View style={styles.trialRewardsRow}>
             <View style={styles.trialReward}>
-              <MaterialIcons name="monetization-on" size={16} color={colors.amber} />
+              <MaterialIcons name="monetization-on" size={16} color={colors.goldRim} />
               <Text style={styles.trialRewardText}>+100</Text>
             </View>
             <View style={styles.trialReward}>
-              <MaterialIcons name="tips-and-updates" size={16} color={colors.primary} />
-              <Text style={styles.trialRewardText}>+1 Hint Flask</Text>
+              <MaterialIcons name="tips-and-updates" size={16} color={colors.purple} />
+              <Text style={styles.trialRewardText}>+1 Hint</Text>
             </View>
             <View style={{ flexGrow: 1 }} />
-            <GradientButton
-              label="Accept"
-              icon="arrow-forward"
-              height={38}
-              colorsArr={[colors.secondaryContainer, colors.violet, colors.secondaryContainer]}
-              edgeColor="#6D019C"
-              textColor="#FFFFFF"
-            />
+            <GradientButton label="Accept" icon="arrow-forward" height={44} />
           </View>
-        </GlassPill>
+        </Panel>
 
         <View style={styles.path}>
           <View style={styles.boss}>
-            <View style={styles.bossBox}>
-              <MaterialIcons name="card-giftcard" size={30} color={colors.amber} />
+            <View style={styles.bossRim}>
+              <LinearGradient colors={['#E879F9', '#9333EA', '#4338CA']} style={styles.bossBox}>
+                <MaterialIcons name="card-giftcard" size={32} color={colors.goldPale} />
+              </LinearGradient>
               <View style={styles.bossLock}>
-                <MaterialIcons name="lock" size={12} color={colors.outline} />
+                <MaterialIcons name="lock" size={12} color={colors.purpleInk} />
               </View>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
-              <MaterialIcons name="stars" size={14} color={colors.amber} />
+            <View style={styles.bossLabelRow}>
+              <MaterialIcons name="stars" size={14} color={colors.goldPale} />
               <Text style={styles.bossLabel}>Mystery Flask: Hidden Layers</Text>
             </View>
             <Text style={styles.bossSub}>Level {nextMystery}</Text>
           </View>
 
-          {levels.map((lvl) => (
-            <Pressable
-              key={lvl.id}
-              disabled={lvl.state === 'locked'}
-              onPress={() => start(lvl.id)}
-              style={[styles.nodeWrap, { alignSelf: 'center', marginLeft: lvl.offset * offsetScale }]}
-            >
-              {lvl.state === 'current' && <Text style={styles.currentTag}>CURRENT</Text>}
-              <View
-                style={[
-                  styles.node,
-                  lvl.state === 'current' && styles.nodeCurrent,
-                  lvl.state === 'done' && styles.nodeDone,
-                ]}
+          {levels.map((lvl) => {
+            const look = NODE_LOOKS[lvl.state];
+            const size = lvl.state === 'current' ? 84 : 70;
+            return (
+              <Pressable
+                key={lvl.id}
+                disabled={lvl.state === 'locked'}
+                onPress={() => start(lvl.id)}
+                style={[styles.nodeWrap, { alignSelf: 'center', marginLeft: lvl.offset * offsetScale }]}
               >
-                {lvl.state === 'locked' && <MaterialIcons name="lock" size={20} color={colors.outline} />}
-                {lvl.state === 'current' && <MaterialIcons name="play-arrow" size={28} color={colors.primaryContainer} />}
-                {lvl.state === 'done' && <MaterialIcons name="check-circle" size={18} color={colors.primaryContainer} />}
-                <Text
-                  style={[
-                    styles.nodeNumber,
-                    lvl.state === 'locked' && { color: colors.outline, fontSize: 13 },
-                  ]}
-                >
-                  {lvl.id}
-                </Text>
-              </View>
-              {lvl.state === 'done' && lvl.stars !== undefined && <Stars count={lvl.stars} />}
-              {lvl.label && <Text style={styles.nodeSub}>{lvl.label}</Text>}
-            </Pressable>
-          ))}
+                {lvl.state === 'current' && (
+                  <View style={styles.currentTag}>
+                    <Text style={styles.currentTagText}>CURRENT</Text>
+                  </View>
+                )}
+                <View style={[styles.nodeRim, { borderRadius: size / 2, backgroundColor: look.rim }]}>
+                  <LinearGradient
+                    colors={look.fill}
+                    style={[styles.node, { width: size, height: size, borderRadius: size / 2, borderColor: look.border }]}
+                  >
+                    <View pointerEvents="none" style={[styles.nodeGloss, { borderRadius: size / 2 }]} />
+                    {lvl.state === 'locked' && <MaterialIcons name="lock" size={20} color="rgba(255,255,255,0.85)" />}
+                    {lvl.state === 'current' && <MaterialIcons name="play-arrow" size={30} color={colors.goldInk} />}
+                    {lvl.state === 'done' && <MaterialIcons name="check" size={20} color="#FFFFFF" />}
+                    <Text
+                      style={[
+                        styles.nodeNumber,
+                        lvl.state === 'current' && { color: colors.goldInk, textShadowColor: 'rgba(255,255,255,0.6)' },
+                        lvl.state === 'locked' && { fontSize: 14, opacity: 0.9 },
+                      ]}
+                    >
+                      {lvl.id}
+                    </Text>
+                  </LinearGradient>
+                </View>
+                {lvl.state === 'done' && lvl.stars !== undefined && <Stars count={lvl.stars} />}
+                {lvl.label && <Text style={styles.nodeSub}>{lvl.label}</Text>}
+              </Pressable>
+            );
+          })}
         </View>
 
         <GradientButton
           label={`Jump to Level ${frontier}`}
           icon="my-location"
+          variant="gold"
           fullWidth={!isTablet}
           onPress={() => start(frontier)}
-          style={{ marginTop: spacing.xl, alignSelf: 'center', minWidth: isTablet ? 360 : undefined }}
+          style={{ marginTop: spacing.lg, alignSelf: 'center', minWidth: isTablet ? 360 : undefined }}
         />
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -211,86 +233,124 @@ export default function StagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.md, paddingBottom: 24 },
-  chapterCard: { padding: 16, marginBottom: spacing.md },
-  chapterRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  chapterLabel: { color: colors.primaryFixedDim, fontFamily: fontFamily.labelSm, fontSize: 11, letterSpacing: 1 },
-  chapterTitle: { color: colors.onSurface, fontFamily: fontFamily.headlineSm, fontSize: 18, marginTop: 2 },
-  chapterFraction: { color: colors.primaryContainer, fontFamily: fontFamily.counterNum, fontSize: 20 },
-  chapterFractionSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.bodySm, fontSize: 12 },
-  chapterSolved: { color: colors.onSurfaceVariant, fontFamily: fontFamily.labelSm, fontSize: 11 },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.4)', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 3 },
+  screen: { flex: 1 },
+  content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: 24 },
 
-  trialCard: { padding: 16, marginBottom: spacing.xl },
-  trialTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 },
-  trialTitle: { color: colors.secondary, fontFamily: fontFamily.labelMd, fontSize: 13 },
-  trialTimer: { color: colors.tertiaryFixed, fontFamily: fontFamily.labelSm, fontSize: 11, fontWeight: '700' },
-  trialDesc: { color: colors.onSurface, fontFamily: fontFamily.bodyMd, fontSize: 14, marginBottom: 10 },
-  trialRewardsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
-  trialReward: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  trialRewardText: { color: colors.onSurface, fontFamily: fontFamily.labelSm, fontSize: 11 },
-
-  path: { alignItems: 'center', paddingTop: 8 },
-  boss: { alignItems: 'center', marginBottom: 36, opacity: 0.85 },
-  bossBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceContainerHigh,
+  chapterCard: { padding: 14, marginBottom: spacing.md },
+  chapterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 },
+  chapterLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  chapterIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.lagoon,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  chapterLabel: { color: colors.purple, fontFamily: fontFamily.black, fontSize: 11, letterSpacing: 1 },
+  chapterTitle: { color: colors.ink, fontFamily: fontFamily.extraBold, fontSize: 19 },
+  chapterFraction: { color: colors.greenInk, fontFamily: fontFamily.black, fontSize: 22 },
+  chapterFractionSub: { color: colors.inkMuted, fontFamily: fontFamily.bold, fontSize: 13 },
+  chapterSolved: { color: colors.inkSoft, fontFamily: fontFamily.bold, fontSize: 11 },
+  progressTrack: {
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.creamEdge,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 6 },
+
+  trialCard: { padding: 14, marginBottom: spacing.xl },
+  trialTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 },
+  trialRibbon: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 1 },
+  trialRibbonText: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 12 },
+  trialTimer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  trialTimerText: { color: colors.guava, fontFamily: fontFamily.black, fontSize: 12 },
+  trialDesc: { color: colors.ink, fontFamily: fontFamily.bold, fontSize: 15, marginBottom: 10 },
+  trialRewardsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  trialReward: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+  },
+  trialRewardText: { color: colors.ink, fontFamily: fontFamily.black, fontSize: 12 },
+
+  path: { alignItems: 'center', paddingTop: 8 },
+  boss: { alignItems: 'center', marginBottom: 34 },
+  bossRim: { borderRadius: 22, paddingBottom: 5, backgroundColor: colors.purpleRim },
+  bossBox: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: colors.goldPale,
   },
   bossLock: {
     position: 'absolute',
-    bottom: -6,
+    bottom: -4,
     right: -6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.surfaceContainerHighest,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bossLabel: { color: colors.tertiary, fontFamily: fontFamily.labelSm, fontSize: 11 },
-  bossSub: { color: colors.onSurfaceVariant, fontFamily: fontFamily.counterNum, fontSize: 13, marginTop: 2 },
-
-  nodeWrap: { alignItems: 'center', marginBottom: 40 },
-  currentTag: {
-    color: colors.primaryContainer,
-    fontFamily: fontFamily.labelSm,
-    fontSize: 10,
-    letterSpacing: 1,
-    marginBottom: 6,
-    backgroundColor: 'rgba(0,229,255,0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  node: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: colors.surfaceContainerHigh,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.goldPale,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  nodeCurrent: {
-    borderColor: colors.primaryContainer,
-    backgroundColor: colors.surfaceContainer,
-    shadowColor: colors.cyan,
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
+  bossLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  bossLabel: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 12, ...artTextShadow },
+  bossSub: { color: colors.onArtGold, fontFamily: fontFamily.black, fontSize: 13, marginTop: 2, ...artTextShadow },
+
+  nodeWrap: { alignItems: 'center', marginBottom: 34 },
+  currentTag: {
+    backgroundColor: colors.guava,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    marginBottom: 6,
   },
-  nodeDone: {
-    backgroundColor: colors.surfaceContainer,
-    borderColor: 'rgba(0,229,255,0.35)',
+  currentTagText: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 10, letterSpacing: 1 },
+  nodeRim: {
+    paddingBottom: 5,
+    shadowColor: '#12052B',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
-  nodeNumber: { color: colors.onSurface, fontFamily: fontFamily.counterNum, fontSize: 16, marginTop: 2 },
-  nodeSub: { color: colors.primary, fontFamily: fontFamily.labelMd, fontSize: 12, marginTop: 6 },
+  node: { alignItems: 'center', justifyContent: 'center', borderWidth: 3, overflow: 'hidden' },
+  nodeGloss: {
+    position: 'absolute',
+    top: 3,
+    left: '15%',
+    right: '15%',
+    height: '40%',
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  nodeNumber: {
+    color: '#FFFFFF',
+    fontFamily: fontFamily.black,
+    fontSize: 17,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 0.5,
+  },
+  starsRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 1, marginTop: 4 },
+  starIcon: { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  nodeSub: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 13, marginTop: 6, ...artTextShadow },
 });

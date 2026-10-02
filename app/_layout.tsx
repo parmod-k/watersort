@@ -5,31 +5,34 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
-  useFonts as useQuicksandFonts,
-  Quicksand_600SemiBold,
-  Quicksand_700Bold,
-} from '@expo-google-fonts/quicksand';
-import {
-  useFonts as useNunitoFonts,
-  NunitoSans_500Medium,
-  NunitoSans_600SemiBold,
-} from '@expo-google-fonts/nunito-sans';
+  useFonts,
+  Rubik_500Medium,
+  Rubik_600SemiBold,
+  Rubik_700Bold,
+  Rubik_800ExtraBold,
+  Rubik_900Black,
+} from '@expo-google-fonts/rubik';
 import { View } from 'react-native';
 import { colors } from '../theme/tokens';
 
 export default function RootLayout() {
-  const [quicksandLoaded] = useQuicksandFonts({ Quicksand_600SemiBold, Quicksand_700Bold });
-  const [nunitoLoaded] = useNunitoFonts({ NunitoSans_500Medium, NunitoSans_600SemiBold });
+  const [fontsLoaded] = useFonts({
+    Rubik_500Medium,
+    Rubik_600SemiBold,
+    Rubik_700Bold,
+    Rubik_800ExtraBold,
+    Rubik_900Black,
+  });
 
-  if (!quicksandLoaded || !nunitoLoaded) {
-    return <View style={{ flex: 1, backgroundColor: colors.surface }} />;
+  if (!fontsLoaded) {
+    return <View style={{ flex: 1, backgroundColor: colors.backdrop }} />;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.backdrop } }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="level-complete" options={{ presentation: 'transparentModal', animation: 'fade' }} />
         </Stack>
