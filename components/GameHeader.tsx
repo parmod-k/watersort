@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import Pill from './ui/Pill';
 import IconButton from './ui/IconButton';
+import SettingsMenu from './SettingsMenu';
 import { colors, fontFamily, radii } from '../theme/tokens';
 import { useProgress } from '../game/progress';
 import { contentMaxWidth, useResponsive } from '../theme/responsive';
@@ -22,11 +23,18 @@ export default function GameHeader(props: Props) {
   const level = props.level ?? progress.current;
   const coins = props.coins ?? progress.coins;
   const { isCompact, gutter } = useResponsive();
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
       <View style={[styles.row, { paddingHorizontal: gutter }]}>
         <View style={styles.left}>
-          <IconButton icon="settings" shape="squircle" size={isCompact ? 40 : 44} iconColor={colors.goldLight} />
+          <IconButton
+            icon="settings"
+            shape="squircle"
+            size={isCompact ? 40 : 44}
+            iconColor={colors.goldLight}
+            onPress={() => setMenuOpen(true)}
+          />
           <Pill variant="purple" radius={radii.full} style={styles.levelPlaque}>
             <MaterialIcons name="star" size={14} color={colors.goldPale} />
             <View style={styles.levelStack}>
@@ -51,6 +59,7 @@ export default function GameHeader(props: Props) {
           </Pill>
         </View>
       </View>
+      <SettingsMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
   );
 }

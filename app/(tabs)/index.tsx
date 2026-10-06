@@ -115,7 +115,6 @@ export default function PlayScreen() {
       )
     : null;
   const controlSize = isCompact ? 46 : isTablet ? 64 : 56;
-  const heroSize = isCompact ? 62 : isTablet ? 84 : 76;
   const completedCount = useMemo(() => tubes.filter(isTubeComplete).length, [tubes]);
 
   function resetBoard() {
@@ -433,18 +432,6 @@ export default function PlayScreen() {
     return null;
   }
 
-  function handleDemo() {
-    if (isAnimating.current) return;
-    const move = suggestMove();
-    if (!move) {
-      showToast('No moves left — try undo', 'info');
-      return;
-    }
-    deselectAll(false);
-    selectTube(move.source);
-    setTimeout(() => executePour(move.source, move.target), 260);
-  }
-
   function handleHint() {
     if (isAnimating.current) return;
     if (hintsLeft === 0) {
@@ -554,7 +541,8 @@ export default function PlayScreen() {
           style={styles.stage}
           onLayout={(e) => {
             const { width, height } = e.nativeEvent.layout;
-            setStageSize({ w: width, h: height });
+            // Ignore the 0x0 layout reported while this tab is hidden.
+            if (width > 0 && height > 0) setStageSize({ w: width, h: height });
           }}
         >
           {layout && (
@@ -703,7 +691,6 @@ export default function PlayScreen() {
         <View style={[styles.dock, isShort && { paddingTop: 8, paddingBottom: 6 }]}>
           <IconButton icon="undo" label="Undo" onPress={handleUndo} badge={history.length || undefined} size={controlSize} />
           <IconButton icon="refresh" label="Restart" onPress={handleRestart} size={controlSize} />
-          <IconButton icon="play-arrow" label={isCompact ? 'Demo' : 'Demo Pour'} variant="gold" onPress={handleDemo} size={heroSize} />
           <IconButton
             icon="lightbulb"
             label="Hint"
