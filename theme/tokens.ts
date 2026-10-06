@@ -45,7 +45,7 @@ export const colors = {
   amber: '#F59E0B',
 
   // Board frame and bottle glass.
-  frost: 'rgba(255,255,255,0.22)',
+  frost: 'rgba(15,5,5,0.58)',
   frostEdge: 'rgba(255,255,255,0.65)',
   glassEdge: 'rgba(255,255,255,0.78)',
   selectGlow: '#FDE047',
@@ -65,29 +65,31 @@ export const chassis = {
   dock: ['#7C3AED', '#5B21B6', '#3B0B75'] as [string, string, string],
 };
 
-/** Liquid colors, left -> right across the bottle for a rounded, glossy look. */
+/**
+ * Liquid colors, left -> right across the bottle for a rounded, glossy look.
+ * Every hue is bright and clearly different from the others so players can tell them apart at a glance.
+ */
 export const liquidGradients: Record<string, [string, string, string]> = {
-  cyan: ['#7DE3FF', '#00B2FE', '#0284C7'],
-  coral: ['#FF8A80', '#EF4444', '#B91C1C'],
-  emerald: ['#5EF0B4', '#10B981', '#047857'],
-  purple: ['#D8A8FF', '#A855F7', '#7E22CE'],
-  yellow: ['#FFF07A', '#FACC15', '#CA8A04'],
-  pink: ['#FFA3D1', '#EC4899', '#BE185D'],
-  orange: ['#FFC078', '#F59E0B', '#C2410C'],
-  blue: ['#93C5FD', '#3B82F6', '#1D4ED8'],
-  lime: ['#E2FF8A', '#A3E635', '#4D7C0F'],
-  red: ['#FCA5A5', '#DC2626', '#7F1D1D'],
-  // Later levels add look-alike shades to make sorting harder.
-  sky: ['#E0F2FE', '#7DD3FC', '#0284C7'],
-  navy: ['#818CF8', '#4338CA', '#1E1B4B'],
-  teal: ['#5EEAD4', '#14B8A6', '#0F766E'],
-  brown: ['#E0B084', '#A16207', '#5C3A0A'],
+  cyan: ['#8CF5FF', '#00E5FF', '#00B8D9'],
+  red: ['#FF8A8A', '#FF2D2D', '#D10F0F'],
+  purple: ['#D9A6FF', '#A33BFF', '#7A12E0'],
+  yellow: ['#FFF59E', '#FFE600', '#E6C200'],
+  green: ['#7DFF9E', '#00E04B', '#00B33C'],
+  pink: ['#FFA6E8', '#FF3EC9', '#E010A6'],
+  orange: ['#FFC27A', '#FF8A00', '#E06A00'],
+  blue: ['#8FB0FF', '#2B5BFF', '#1A3FD6'],
+  lime: ['#E4FF94', '#B8FF1A', '#8FD600'],
+  white: ['#FFFFFF', '#F4F6FA', '#CED6E2'],
+  brown: ['#D9966B', '#A0522D', '#7A3B1C'],
+  black: ['#5A5A6E', '#2B2B38', '#15151D'],
+  teal: ['#6FFFE0', '#00C9A0', '#009C7C'],
+  lavender: ['#F0E4FF', '#D2B8FF', '#AE8CF0'],
 };
 
-/** Order colors are introduced as levels get harder: distinct hues first, look-alikes last. */
+/** Order colors are introduced as levels get harder: the most distinct hues come first. */
 export const liquidOrder = [
-  'cyan', 'coral', 'purple', 'yellow', 'emerald', 'pink', 'orange',
-  'blue', 'lime', 'red', 'sky', 'navy', 'teal', 'brown',
+  'cyan', 'red', 'purple', 'yellow', 'green', 'pink', 'orange',
+  'blue', 'lime', 'white', 'brown', 'black', 'teal', 'lavender',
 ] as const;
 
 /** Greyed-out look for a "mystery" layer whose color is not yet revealed. */
