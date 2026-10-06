@@ -17,6 +17,7 @@ import Panel from '../../components/ui/Panel';
 import Pill from '../../components/ui/Pill';
 import IconButton from '../../components/ui/IconButton';
 import Tube, { TubeColor } from '../../components/game/Tube';
+import { PourStream, SettleRipple } from '../../components/game/PourEffects';
 import { colors, fontFamily, liquidGradients, spacing } from '../../theme/tokens';
 import {
   CAPACITY,
@@ -29,6 +30,7 @@ import {
 } from '../../game/levels';
 import { recordFor, scoreFor, targetSeconds } from '../../game/scoring';
 import { completeLevel, useProgress } from '../../game/progress';
+import { playSfx, stopSfx } from '../../game/sfx';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 /** Upper bound on bottles on the board (largest level plus the extra-bottle power-up). */
@@ -42,6 +44,9 @@ const GLASS_INSET = 6;
 type ToastTone = 'info' | 'alert';
 
 type Move = { source: number; target: number; color: TubeColor; count: number };
+
+/** Where the pour stream runs, in stage coordinates. */
+type StreamPos = { x: number; y: number; height: number; rise: number; glassWidth: number; streamWidth: number };
 
 /**
  * Fits the bottles into the stage: up to 3 rows, shrinking bottles as the count grows.
@@ -98,7 +103,11 @@ export default function PlayScreen() {
   const growAnim = useRef(new Animated.Value(0)).current;
   const streamAnim = useRef(new Animated.Value(0)).current;
   const [pourFx, setPourFx] = useState<{ sourceId: number; targetId: number; color: TubeColor; count: number } | null>(null);
-  const [streamPos, setStreamPos] = useState<{ x: number; y: number; height: number } | null>(null);
+  const [streamPos, setStreamPos] = useState<StreamPos | null>(null);
+  // Ripple on the target's surface once the pour stops; `key` restarts it for back-to-back pours.
+  const [settleFx, setSettleFx] = useState<{ x: number; y: number; width: number; color: TubeColor; key: number } | null>(
+    null,
+  );
   // The tube currently tilting, and which lip it pivots on (1 = right lip, -1 = left lip).
   const [tilt, setTilt] = useState<{ id: number; dir: 1 | -1 } | null>(null);
 
@@ -131,6 +140,8 @@ export default function PlayScreen() {
     setSeconds(0);
     setPourFx(null);
     setStreamPos(null);
+    setSettleFx(null);
+    stopSfx('pour');
     setTilt(null);
     solvedRef.current = false;
   }
@@ -262,8 +273,9 @@ export default function PlayScreen() {
     const lipX = tgt.x + tubeW / 2;
     const lipY = tgt.y - gap;
 
-    // The stream runs from the lip down to the target's current liquid surface.
-    const surfaceY = tgt.y + GLASS_INSET + (CAPACITY - tubes[targetId].length) * ((tubeH - GLASS_INSET * 2) / CAPACITY);
+    // The stream runs from the lip down to the target's current liquid surface, which rises as it fills.
+    const slotH = (tubeH - GLASS_INSET * 2) / CAPACITY;
+    const surfaceY = tgt.y + GLASS_INSET + (CAPACITY - tubes[targetId].length) * slotH;
 
     setTilt({ id: sourceId, dir });
     runPourAnimation({
@@ -275,7 +287,14 @@ export default function PlayScreen() {
       moveY: lipY - src.y,
       startAngle: dir * startAngle,
       endAngle: dir * endAngle,
-      stream: { x: lipX, y: lipY, height: surfaceY - lipY },
+      stream: {
+        x: lipX,
+        y: lipY,
+        height: surfaceY - lipY,
+        rise: count * slotH,
+        glassWidth: tubeW - GLASS_INSET * 2,
+        streamWidth: Math.max(4, Math.min(9, tubeW * 0.13)),
+      },
       recordHistory,
     });
   }
@@ -300,7 +319,7 @@ export default function PlayScreen() {
     moveY: number;
     startAngle: number;
     endAngle: number;
-    stream: { x: number; y: number; height: number };
+    stream: StreamPos;
     recordHistory: boolean;
   }) {
     // 1. Carry the source over the target's mouth and tip it. The tilt starts a beat later so the
@@ -327,7 +346,10 @@ export default function PlayScreen() {
       streamAnim.setValue(0);
       setStreamPos(stream);
       setPourFx({ sourceId, targetId, color: pouredColor, count });
+      setSettleFx(null);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      // Bigger pours sound a touch deeper.
+      playSfx('pour', { volume: 0.7, rate: 1.08 - count * 0.04 });
 
       // 2. The stream falls from the lip; the source drains and tips further while the target fills.
       //    More segments take proportionally longer to pour.
@@ -346,9 +368,24 @@ export default function PlayScreen() {
           Animated.timing(growAnim, { toValue: 1, duration: pourMs - 60, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
         ]),
       ]).start(() => {
-        // 3. The stream's tail drops into the target.
+        // 3. The stream's tail drops into the target and the surface settles.
         Animated.timing(streamAnim, { toValue: 2, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+          stopSfx('pour');
           const remaining = tubes[sourceId].length - count;
+          const fillsBottle = isTubeComplete([...tubes[targetId], ...Array(count).fill(pouredColor)]);
+          if (fillsBottle) {
+            playSfx('chime', { volume: 0.8 });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          } else {
+            playSfx('plop', { volume: 0.6, rate: 0.95 + Math.random() * 0.15 });
+          }
+          setSettleFx({
+            x: stream.x,
+            y: stream.y + stream.height - stream.rise,
+            width: stream.glassWidth,
+            color: pouredColor,
+            key: Date.now(),
+          });
           setTubes((prev) => {
             const next = prev.map((s) => [...s]);
             next[sourceId].splice(-count, count);
@@ -629,34 +666,27 @@ export default function PlayScreen() {
           )}
 
           {pourFx && streamPos && (
-            <View
-              pointerEvents="none"
-              style={[styles.streamBeam, { left: streamPos.x - 3, top: streamPos.y, height: streamPos.height }]}
-            >
-              {/* 0 -> 1: the column falls from the lip; 1 -> 2: its tail drops into the target. */}
-              <Animated.View
-                style={[
-                  styles.streamGradient,
-                  {
-                    transform: [
-                      {
-                        translateY: streamAnim.interpolate({
-                          inputRange: [0, 1, 2],
-                          outputRange: [-streamPos.height, 0, streamPos.height],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <LinearGradient
-                  colors={liquidGradients[pourFx.color] ?? liquidGradients.cyan}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </Animated.View>
-            </View>
+            <PourStream
+              x={streamPos.x}
+              lipY={streamPos.y}
+              surfaceY={streamPos.y + streamPos.height}
+              rise={streamPos.rise}
+              glassWidth={streamPos.glassWidth}
+              streamWidth={streamPos.streamWidth}
+              colors={liquidGradients[pourFx.color] ?? liquidGradients.cyan}
+              streamAnim={streamAnim}
+              growAnim={growAnim}
+            />
+          )}
+          {settleFx && (
+            <SettleRipple
+              key={settleFx.key}
+              x={settleFx.x}
+              y={settleFx.y}
+              glassWidth={settleFx.width}
+              colors={liquidGradients[settleFx.color] ?? liquidGradients.cyan}
+              onDone={() => setSettleFx(null)}
+            />
           )}
         </View>
 
@@ -798,15 +828,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.frostEdge,
   },
-  streamBeam: {
-    position: 'absolute',
-    width: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-    zIndex: 20,
-    elevation: 20,
-  },
-  streamGradient: { flex: 1, width: '100%' },
   tubeRow: { flexDirection: 'row', justifyContent: 'center' },
   raised: { zIndex: 10, elevation: 16 },
   sparkleWrap: { position: 'absolute', top: -26, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
