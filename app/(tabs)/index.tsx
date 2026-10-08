@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { router, useIsFocused } from 'expo-router';
 import GameHeader from '../../components/GameHeader';
@@ -41,8 +40,6 @@ const HINTS_PER_LEVEL = 3;
 const BOARD_PAD = { x: 14, top: 24, bottom: 16 };
 /** Distance from a bottle's outer edge to its liquid (glass border plus inner padding). */
 const GLASS_INSET = 6;
-
-type ToastTone = 'info' | 'alert';
 
 type Move = { source: number; target: number; color: TubeColor; count: number };
 
@@ -85,9 +82,6 @@ export default function PlayScreen() {
   // Seconds spent on this board; only counts while the Play tab is visible and unsolved.
   const [seconds, setSeconds] = useState(0);
   const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
-  const [toast, setToast] = useState<{ text: string; icon: keyof typeof MaterialIcons.glyphMap; tone: ToastTone } | null>(
-    null,
-  );
 
   const isAnimating = useRef(false);
   const solvedRef = useRef(false);
@@ -98,8 +92,6 @@ export default function PlayScreen() {
   const boardOffset = useRef<{ x: number; y: number } | null>(null);
   const anim = useRef(Array.from({ length: MAX_TUBES }, () => new Animated.ValueXY({ x: 0, y: 0 }))).current;
   const rotate = useRef(Array.from({ length: MAX_TUBES }, () => new Animated.Value(0))).current;
-  const toastPop = useRef(new Animated.Value(1)).current;
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const shrinkAnim = useRef(new Animated.Value(0)).current;
   const growAnim = useRef(new Animated.Value(0)).current;
@@ -154,7 +146,6 @@ export default function PlayScreen() {
     if (loadedSession.current === progress.session) return;
     loadedSession.current = progress.session;
     resetBoard();
-    if (level.mystery) showToast('Mystery level: pour to reveal hidden layers', 'help-outline');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress.session]);
 
@@ -197,16 +188,6 @@ export default function PlayScreen() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tubes]);
-
-  /** Flashes a message in the tip banner; it falls back to the level tip after a moment. */
-  function showToast(text: string, icon: keyof typeof MaterialIcons.glyphMap = 'info', tone: ToastTone = 'info') {
-    setToast({ text, icon, tone });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastPop.stopAnimation();
-    toastPop.setValue(0.9);
-    Animated.spring(toastPop, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }).start();
-    toastTimer.current = setTimeout(() => setToast(null), 1800);
-  }
 
   function deselectAll(animated = true) {
     setSelected((prev) => {
@@ -404,8 +385,6 @@ export default function PlayScreen() {
             setHistory((h) => [...h, { source: sourceId, target: targetId, color: pouredColor, count }]);
           }
           setMoves((m) => m + 1);
-          if (reveals) showToast('Mystery layer revealed!', 'visibility');
-          else showToast(count > 1 ? `Poured ${count}× ${pouredColor}!` : `Poured ${pouredColor}!`, 'opacity');
           setPourFx(null);
           setStreamPos(null);
 
@@ -437,10 +416,7 @@ export default function PlayScreen() {
     if (isAnimating.current) return;
     const stack = tubes[id];
 
-    if (isTubeComplete(stack)) {
-      showToast('Tube completed!', 'star');
-      return;
-    }
+    if (isTubeComplete(stack)) return;
 
     if (selected === null) {
       if (stack.length > 0) selectTube(id);
@@ -454,7 +430,6 @@ export default function PlayScreen() {
     if (canPour(tubes[selected], tubes[id])) {
       executePour(selected, id);
     } else {
-      showToast('Invalid Move!', 'block', 'alert');
       deselectAll();
     }
   }
@@ -474,28 +449,18 @@ export default function PlayScreen() {
 
   function handleHint() {
     if (isAnimating.current) return;
-    if (hintsLeft === 0) {
-      showToast('No hints left this level', 'lightbulb');
-      return;
-    }
+    if (hintsLeft === 0) return;
     const move = suggestMove();
-    if (!move) {
-      showToast('No moves left — try undo', 'lightbulb');
-      return;
-    }
+    if (!move) return;
     setHintsLeft((h) => h - 1);
     deselectAll(false);
     selectTube(move.source);
-    showToast(`Hint: pour into bottle ${move.target + 1}`, 'lightbulb');
   }
 
   function handleUndo() {
     if (isAnimating.current) return;
     setHistory((h) => {
-      if (h.length === 0) {
-        showToast('Nothing to undo', 'undo');
-        return h;
-      }
+      if (h.length === 0) return h;
       const last = h[h.length - 1];
       setTubes((prev) => {
         const next = prev.map((s) => [...s]);
@@ -505,7 +470,6 @@ export default function PlayScreen() {
       });
       setMoves((m) => Math.max(0, m - 1));
       setUndoUsed(true);
-      showToast('Previous move undone', 'undo');
       return h.slice(0, -1);
     });
   }
@@ -513,19 +477,14 @@ export default function PlayScreen() {
   function handleRestart() {
     if (isAnimating.current) return;
     resetBoard();
-    showToast('Restarting level...', 'refresh');
   }
 
   function handleAddTube() {
     if (isAnimating.current) return;
-    if (extraTubeUsed) {
-      showToast('Extra bottle already used', 'add');
-      return;
-    }
+    if (extraTubeUsed) return;
     setExtraTubeUsed(true);
     setTubes((prev) => [...prev, []]);
     setHidden((prev) => [...prev, 0]);
-    showToast('Extra bottle added!', 'add');
   }
 
   const rows: number[][] = [];
@@ -539,11 +498,6 @@ export default function PlayScreen() {
 
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   const overTime = seconds > targetSeconds(level.par);
-  const tip = level.mystery
-    ? 'Mystery level: pour off the top to reveal ? layers'
-    : moves === 0
-      ? 'Tap a flask to pick, then tap another to pour!'
-      : `Par ${level.par} moves · ${level.colorCount} colors · ${level.emptyCount} empty`;
   const movesPill = (
     <Pill variant="amber" style={styles.movesPill}>
       <Text style={styles.movesLabel}>MOVES</Text>
@@ -693,34 +647,6 @@ export default function PlayScreen() {
           )}
         </View>
 
-        {/* Tip banner; flashes move feedback, then returns to the level tip. */}
-        <Animated.View style={[styles.bannerWrap, { transform: [{ scale: toastPop }] }]}>
-          {toast?.tone === 'alert' ? (
-            <View style={[styles.banner, styles.bannerAlert]}>
-              <MaterialIcons name={toast.icon} size={16} color="#FFE4E6" />
-              <Text style={[styles.bannerText, { color: '#FFE4E6' }]} numberOfLines={2}>
-                {toast.text}
-              </Text>
-            </View>
-          ) : (
-            <LinearGradient
-              colors={['#FBBF24', '#FDE047', '#F59E0B']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.banner}
-            >
-              <MaterialIcons
-                name={toast?.icon ?? (level.mystery ? 'help-outline' : 'beach-access')}
-                size={16}
-                color={colors.goldInk}
-              />
-              <Text style={styles.bannerText} numberOfLines={2}>
-                {toast?.text ?? tip}
-              </Text>
-            </LinearGradient>
-          )}
-        </Animated.View>
-
         <View style={[styles.dock, isShort && { paddingTop: 8, paddingBottom: 6 }]}>
           <IconButton icon="undo" label="Undo" onPress={handleUndo} badge={history.length || undefined} size={controlSize} />
           <IconButton icon="refresh" label="Restart" onPress={handleRestart} size={controlSize} />
@@ -818,6 +744,8 @@ const styles = StyleSheet.create({
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative', marginTop: spacing.sm },
   board: {
+    // Span the stage's full width; the rows stay centered inside it.
+    alignSelf: 'stretch',
     paddingHorizontal: BOARD_PAD.x,
     paddingTop: BOARD_PAD.top,
     paddingBottom: BOARD_PAD.bottom,
@@ -834,26 +762,6 @@ const styles = StyleSheet.create({
   tubeRow: { flexDirection: 'row', justifyContent: 'center' },
   raised: { zIndex: 10, elevation: 16 },
   sparkleWrap: { position: 'absolute', top: -26, left: 0, right: 0, alignItems: 'center', zIndex: 5 },
-
-  bannerWrap: { marginTop: spacing.sm, alignSelf: 'stretch' },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  bannerAlert: { backgroundColor: 'rgba(136,19,55,0.92)', borderColor: '#FDA4AF' },
-  bannerText: { color: colors.goldInk, fontFamily: fontFamily.black, fontSize: 13, flexShrink: 1, textAlign: 'center' },
 
   dock: {
     flexDirection: 'row',
