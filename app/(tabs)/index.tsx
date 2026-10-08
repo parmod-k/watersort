@@ -28,20 +28,23 @@ import {
   pourCount,
   solve,
 } from '../../game/levels';
-import { recordFor, scoreFor, targetSeconds } from '../../game/scoring';
-import { completeLevel, useProgress } from '../../game/progress';
+import { scoreFor, targetSeconds } from '../../game/scoring';
+import { completeLevel, grantAdCoins, payForBooster, useProgress } from '../../game/progress';
+import { showRewarded, useRewardedReady } from '../../game/ads';
+import { Booster, BOOSTERS, boosterPrice, ECONOMY } from '../../game/economy';
 import { playSfx, rampSfx, stopSfx } from '../../game/sfx';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 /** Upper bound on bottles on the board (largest level plus the extra-bottle power-up). */
 const MAX_TUBES = 20;
-const HINTS_PER_LEVEL = 3;
 /** Inner padding of the frosted board frame (the top leaves room for bottle lips and sparkles). */
 const BOARD_PAD = { x: 14, top: 24, bottom: 16 };
 /** Distance from a bottle's outer edge to its liquid (glass border plus inner padding). */
 const GLASS_INSET = 6;
 
 type Move = { source: number; target: number; color: TubeColor; count: number };
+
+const NO_BOOSTERS_USED: Record<Booster, number> = { undo: 0, hint: 0, restart: 0, extraBottle: 0 };
 
 /** Where the pour stream runs, in stage coordinates. */
 type StreamPos = { x: number; y: number; height: number; rise: number; glassWidth: number; streamWidth: number };
@@ -77,7 +80,12 @@ export default function PlayScreen() {
   const [moves, setMoves] = useState(0);
   const [history, setHistory] = useState<Move[]>([]);
   const [undoUsed, setUndoUsed] = useState(false);
-  const [hintsLeft, setHintsLeft] = useState(HINTS_PER_LEVEL);
+  /** Booster uses on this level. Survives Restart so restarting can't refill the free allowance. */
+  const [boostersUsed, setBoostersUsed] = useState(NO_BOOSTERS_USED);
+  /** Short message above the dock, e.g. when a booster can't be afforded (then offers a rewarded ad). */
+  const [notice, setNotice] = useState<{ text: string; offerAd: boolean } | null>(null);
+  const adReady = useRewardedReady();
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [extraTubeUsed, setExtraTubeUsed] = useState(false);
   // Seconds spent on this board; only counts while the Play tab is visible and unsolved.
   const [seconds, setSeconds] = useState(0);
@@ -130,7 +138,6 @@ export default function PlayScreen() {
     setMoves(0);
     setHistory([]);
     setUndoUsed(false);
-    setHintsLeft(HINTS_PER_LEVEL);
     setExtraTubeUsed(false);
     setSeconds(0);
     setPourFx(null);
@@ -148,6 +155,7 @@ export default function PlayScreen() {
     if (loadedSession.current === progress.session) return;
     loadedSession.current = progress.session;
     resetBoard();
+    setBoostersUsed(NO_BOOSTERS_USED);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress.session]);
 
@@ -163,9 +171,7 @@ export default function PlayScreen() {
     solvedRef.current = true;
     const result = { moves, par: level.par, seconds, usedUndo: undoUsed, usedExtraBottle: extraTubeUsed };
     const t = setTimeout(() => {
-      const record = recordFor(result);
-      const coins = 100 + record.stars * 50;
-      const { trialBonus } = completeLevel(levelNum, result, coins);
+      const { record, coins, trialBonus } = completeLevel(levelNum, result);
       const score = scoreFor(result);
       router.push({
         pathname: '/level-complete',
@@ -471,18 +477,49 @@ export default function PlayScreen() {
     return null;
   }
 
+  function showNotice(text: string, offerAd = false) {
+    clearTimeout(noticeTimer.current);
+    setNotice({ text, offerAd });
+    noticeTimer.current = setTimeout(() => setNotice(null), offerAd ? 4000 : 2000);
+  }
+
+  async function watchAdForCoins() {
+    clearTimeout(noticeTimer.current);
+    setNotice(null);
+    if (await showRewarded()) grantAdCoins(ECONOMY.adReward);
+  }
+
+  /** Charges for one booster use (free within the level's allowance). False if it can't be afforded. */
+  function chargeBooster(kind: Booster) {
+    if (!payForBooster(kind, boostersUsed[kind])) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      showNotice(`Need ${boosterPrice(kind, boostersUsed[kind])} coins`, adReady);
+      return false;
+    }
+    setBoostersUsed((u) => ({ ...u, [kind]: u[kind] + 1 }));
+    return true;
+  }
+
+  /** Corner badge: free uses left (green), else the coin price (gold). */
+  function boosterBadge(kind: Booster) {
+    const price = boosterPrice(kind, boostersUsed[kind]);
+    return price === 0
+      ? { badge: BOOSTERS[kind].free - boostersUsed[kind], badgeTone: 'green' as const }
+      : { badge: price, badgeTone: 'gold' as const };
+  }
+
   function handleHint() {
     if (isAnimating.current) return;
-    if (hintsLeft === 0) return;
     const move = suggestMove();
     if (!move) return;
-    setHintsLeft((h) => h - 1);
+    if (!chargeBooster('hint')) return;
     deselectAll(false);
     selectTube(move.source);
   }
 
   function handleUndo() {
-    if (isAnimating.current) return;
+    if (isAnimating.current || history.length === 0) return;
+    if (!chargeBooster('undo')) return;
     setHistory((h) => {
       if (h.length === 0) return h;
       const last = h[h.length - 1];
@@ -499,13 +536,15 @@ export default function PlayScreen() {
   }
 
   function handleRestart() {
-    if (isAnimating.current) return;
+    if (isAnimating.current || moves === 0) return;
+    if (!chargeBooster('restart')) return;
     resetBoard();
   }
 
   function handleAddTube() {
     if (isAnimating.current) return;
     if (extraTubeUsed) return;
+    if (!chargeBooster('extraBottle')) return;
     setExtraTubeUsed(true);
     setTubes((prev) => [...prev, []]);
     setHidden((prev) => [...prev, 0]);
@@ -669,26 +708,50 @@ export default function PlayScreen() {
               onDone={() => setSettleFx(null)}
             />
           )}
+          {notice && (
+            <Pressable
+              style={styles.noticeWrap}
+              disabled={!notice.offerAd || !adReady}
+              onPress={watchAdForCoins}
+              accessibilityRole={notice.offerAd ? 'button' : undefined}
+            >
+              <Pill variant="amber" style={styles.notice}>
+                <MaterialIcons
+                  name={notice.offerAd && adReady ? 'play-circle-filled' : 'monetization-on'}
+                  size={16}
+                  color={colors.goldInk}
+                />
+                <Text style={[styles.movesLabel, styles.noticeText]} numberOfLines={1}>
+                  {notice.offerAd && adReady ? `${notice.text} · Watch ad +${ECONOMY.adReward}` : notice.text}
+                </Text>
+              </Pill>
+            </Pressable>
+          )}
         </View>
 
         <View style={[styles.dock, isShort && { paddingTop: 8, paddingBottom: 6 }]}>
-          <IconButton icon="undo" label="Undo" onPress={handleUndo} badge={history.length || undefined} size={controlSize} />
-          <IconButton icon="refresh" label="Restart" onPress={handleRestart} size={controlSize} />
           <IconButton
-            icon="lightbulb"
-            label="Hint"
-            onPress={handleHint}
-            badge={hintsLeft}
-            badgeTone="gold"
+            icon="undo"
+            label="Undo"
+            onPress={handleUndo}
+            {...boosterBadge('undo')}
             size={controlSize}
-            disabled={hintsLeft === 0}
+            disabled={history.length === 0}
           />
+          <IconButton
+            icon="refresh"
+            label="Restart"
+            onPress={handleRestart}
+            {...boosterBadge('restart')}
+            size={controlSize}
+            disabled={moves === 0}
+          />
+          <IconButton icon="lightbulb" label="Hint" onPress={handleHint} {...boosterBadge('hint')} size={controlSize} />
           <IconButton
             icon="science"
             label={isCompact ? 'Bottle' : '+ Bottle'}
             onPress={handleAddTube}
-            badge={extraTubeUsed ? undefined : '+1'}
-            badgeTone="gold"
+            {...(extraTubeUsed ? {} : boosterBadge('extraBottle'))}
             size={controlSize}
             disabled={extraTubeUsed}
           />
@@ -766,6 +829,15 @@ const styles = StyleSheet.create({
   chipLabel: { color: colors.inkMuted, fontFamily: fontFamily.bold, fontSize: 10, lineHeight: 12 },
   chipValue: { color: colors.ink, fontFamily: fontFamily.black, fontSize: 14, lineHeight: 17 },
 
+  noticeWrap: { position: 'absolute', bottom: 8, alignSelf: 'center' },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    height: 32,
+  },
+  noticeText: { fontSize: 13, flexShrink: 0 },
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative', marginTop: spacing.sm },
   board: {
     // Span the stage's full width; the rows stay centered inside it.

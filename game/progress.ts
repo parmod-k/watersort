@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { bestRecord, LevelRecord, LevelResult, recordFor } from './scoring';
 import { cosmetic, CosmeticSlot, DEFAULT_EQUIPPED, Equipped, isOwned } from './cosmetics';
 import { DAILY_BONUS, pickTrialLevel, today, TRIAL_REWARD } from './daily';
+import { Booster, boosterPrice, CoinReason, ECONOMY, LEDGER_SIZE, LedgerEntry, levelReward } from './economy';
 
 export type Progress = {
   /** Level currently loaded on the Play tab. */
@@ -14,6 +15,8 @@ export type Progress = {
   /** Best result per completed level (stars, score, moves, time, power-ups used). */
   records: Record<number, LevelRecord>;
   coins: number;
+  /** Most recent coin changes, newest last (see LEDGER_SIZE). */
+  ledger: LedgerEntry[];
   playerName: string;
   /** Cosmetics bought with coins (level- and star-gated items unlock without being listed here). */
   owned: string[];
@@ -30,7 +33,8 @@ const DEFAULTS: Progress = {
   session: 0,
   unlocked: 1,
   records: {},
-  coins: 1450,
+  coins: ECONOMY.startingCoins,
+  ledger: [],
   playerName: 'FluidMaster_99',
   owned: [],
   equipped: DEFAULT_EQUIPPED,
@@ -74,6 +78,7 @@ function load(): Progress {
             ? migrateStars(saved.stars)
             : {},
       coins: Number.isFinite(saved.coins) ? Number(saved.coins) : DEFAULTS.coins,
+      ledger: Array.isArray(saved.ledger) ? saved.ledger.slice(-LEDGER_SIZE) : [],
       playerName: typeof saved.playerName === 'string' && saved.playerName ? saved.playerName : DEFAULTS.playerName,
       owned: Array.isArray(saved.owned) ? saved.owned.filter((id) => typeof id === 'string') : [],
       equipped: loadEquipped(saved.equipped),
@@ -111,6 +116,17 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/**
+ * Every coin change goes through here so the ledger stays complete. Returns null when a spend
+ * (negative amount) can't be afforded; callers must not proceed in that case.
+ */
+function withCoins(p: Progress, amount: number, reason: CoinReason): Progress | null {
+  if (amount === 0) return p;
+  if (p.coins + amount < 0) return null;
+  const entry: LedgerEntry = { at: Date.now(), amount, reason };
+  return { ...p, coins: p.coins + amount, ledger: [...p.ledger, entry].slice(-LEDGER_SIZE) };
+}
+
 export function useProgress() {
   return useSyncExternalStore(subscribe, () => state, () => state);
 }
@@ -141,36 +157,49 @@ export function startDailyTrial() {
   playLevel(state.trial!.level);
 }
 
-/** Records a cleared level. The trial bonus is paid when today's trial is beaten within par. */
-export function completeLevel(level: number, result: LevelResult, coins: number) {
+/**
+ * Records a cleared level and pays its coins: the full reward on a first clear, a small one on a
+ * replay (see levelReward). The trial bonus is paid when today's trial is beaten within par.
+ */
+export function completeLevel(level: number, result: LevelResult) {
   const record = recordFor(result);
+  const coins = levelReward(record.stars, state.records[level]?.stars);
   const trial = state.trial;
   const beatTrial = !!trial && trial.day === today() && !trial.done && trial.level === level && result.moves <= result.par;
   const trialBonus = beatTrial ? TRIAL_REWARD : 0;
-  set({
+  let next: Progress = {
     ...state,
     // Resume on the next level if the app closes before "Next Level" is tapped. The session is
     // unchanged, so the solved board stays on screen behind the level-complete sheet.
     current: Math.max(state.current, level + 1),
     unlocked: Math.max(state.unlocked, level + 1),
     records: { ...state.records, [level]: bestRecord(state.records[level], record) },
-    coins: state.coins + coins + trialBonus,
     trial: beatTrial ? { ...trial!, done: true } : state.trial,
-  });
-  return { record, trialBonus };
+  };
+  next = withCoins(next, coins, 'level')!;
+  next = withCoins(next, trialBonus, 'trial')!;
+  set(next);
+  return { record, coins, trialBonus };
+}
+
+/**
+ * Pays for one use of an in-level booster. `used` is how many times the player already used it on
+ * this level; uses within the free allowance cost nothing. Returns false if the player can't afford it.
+ */
+export function payForBooster(kind: Booster, used: number) {
+  const next = withCoins(state, -boosterPrice(kind, used), kind);
+  if (!next) return false;
+  if (next !== state) set(next);
+  return true;
 }
 
 /** Buys a coin-priced cosmetic and equips it. Returns false if it can't be bought. */
 export function buyCosmetic(id: string) {
   const item = cosmetic(id);
   if (!item || item.unlock.kind !== 'coins' || state.owned.includes(id)) return false;
-  if (state.coins < item.unlock.price) return false;
-  set({
-    ...state,
-    coins: state.coins - item.unlock.price,
-    owned: [...state.owned, id],
-    equipped: { ...state.equipped, [item.slot]: id },
-  });
+  const paid = withCoins(state, -item.unlock.price, 'shop');
+  if (!paid) return false;
+  set({ ...paid, owned: [...paid.owned, id], equipped: { ...paid.equipped, [item.slot]: id } });
   return true;
 }
 
@@ -180,10 +209,15 @@ export function equipCosmetic(id: string) {
   set({ ...state, equipped: { ...state.equipped, [item.slot]: id } });
 }
 
+/** Coins earned by watching a rewarded ad (called only after the ad reports the reward). */
+export function grantAdCoins(amount: number) {
+  set(withCoins(state, amount, 'ad')!);
+}
+
 /** Free coins once per day. Returns false if already claimed today. */
 export function claimDailyBonus() {
   const day = today();
   if (state.bonusDay === day) return false;
-  set({ ...state, coins: state.coins + DAILY_BONUS, bonusDay: day });
+  set({ ...withCoins(state, DAILY_BONUS, 'daily')!, bonusDay: day });
   return true;
 }

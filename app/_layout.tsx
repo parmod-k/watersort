@@ -1,5 +1,5 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/rubik';
 import { View } from 'react-native';
 import { colors } from '../theme/tokens';
+import { initAds } from '../game/ads';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -23,6 +24,10 @@ export default function RootLayout() {
     Rubik_800ExtraBold,
     Rubik_900Black,
   });
+  // Consent form (where required), then preload ads so the first rewarded ad is ready when offered.
+  useEffect(() => {
+    initAds();
+  }, []);
 
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: colors.backdrop }} />;

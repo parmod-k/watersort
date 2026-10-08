@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { ECONOMY } from './economy';
 
 const DAY_MS = 86_400_000;
 /** Day number of the first Daily Trial (1 Jan 2026), so trial #1 fell on that date. */
 const FIRST_TRIAL_DAY = Math.floor(Date.UTC(2026, 0, 1) / DAY_MS);
 
-export const TRIAL_REWARD = 100;
-export const DAILY_BONUS = 50;
+export const TRIAL_REWARD = ECONOMY.trialReward;
+export const DAILY_BONUS = ECONOMY.dailyBonus;
 
 /** Days since the epoch in the player's local time zone; changes at local midnight. */
 export function today(now = Date.now()) {

@@ -12,7 +12,8 @@ import Panel from '../components/ui/Panel';
 import GradientButton from '../components/ui/GradientButton';
 import IconButton from '../components/ui/IconButton';
 import { artTextShadow, colors, fontFamily, liquidOrder, spacing, titleTextShadow } from '../theme/tokens';
-import { playLevel } from '../game/progress';
+import { grantAdCoins, playLevel } from '../game/progress';
+import { maybeShowInterstitial, showRewarded, useRewardedReady } from '../game/ads';
 import { SCORE_MAX } from '../game/scoring';
 import { playSfx } from '../game/sfx';
 import { useResponsive } from '../theme/responsive';
@@ -124,7 +125,21 @@ export default function LevelCompleteScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function goTo(next: number) {
+  const adReady = useRewardedReady();
+  const [doubled, setDoubled] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+
+  async function doubleCoins() {
+    if (doubled) return;
+    setDoubled(true);
+    if (await showRewarded()) grantAdCoins(coins);
+    else setDoubled(false);
+  }
+
+  async function goTo(next: number) {
+    if (leaving) return;
+    setLeaving(true);
+    await maybeShowInterstitial(level);
     playLevel(next);
     // After a reload (web keeps the /level-complete URL) or a deep link there is nothing to go
     // back to, so land on the Play tab instead.
@@ -279,8 +294,19 @@ export default function LevelCompleteScreen() {
             </View>
 
             <GradientButton label="Next Level" icon="arrow-forward" fullWidth height={60} onPress={() => goTo(level + 1)} />
-            <View style={{ height: 10 }} />
-            <GradientButton label={`Claim 2X Coins (+${coins * 2})`} icon="play-circle-filled" variant="gold" fullWidth />
+            {(adReady || doubled) && (
+              <>
+                <View style={{ height: 10 }} />
+                <GradientButton
+                  label={doubled ? `Coins doubled! +${coins}` : `Watch Ad: 2X Coins (+${coins})`}
+                  icon={doubled ? 'check-circle' : 'play-circle-filled'}
+                  variant="gold"
+                  fullWidth
+                  disabled={doubled}
+                  onPress={doubleCoins}
+                />
+              </>
+            )}
 
             <View style={styles.footerRow}>
               <IconButton icon="replay" label="Replay" size={44} labelColor={colors.inkSoft} onPress={() => goTo(level)} />
