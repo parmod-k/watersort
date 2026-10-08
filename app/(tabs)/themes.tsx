@@ -5,35 +5,43 @@ import GameHeader from '../../components/GameHeader';
 import Panel from '../../components/ui/Panel';
 import Pill from '../../components/ui/Pill';
 import GradientButton, { ButtonVariant } from '../../components/ui/GradientButton';
-import Tube from '../../components/game/Tube';
+import Tube, { TubeColor } from '../../components/game/Tube';
 import { artTextShadow, colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
+import { CosmeticItem, CosmeticSlot, isOwned, itemsFor } from '../../game/cosmetics';
+import { buyCosmetic, claimDailyBonus, equipCosmetic, totalStars, useProgress } from '../../game/progress';
+import { DAILY_BONUS, formatCountdown, msUntilReset, today, useNow } from '../../game/daily';
 
-const tabs = ['Vial Shapes', 'Fluid Styles', 'Stoppers'];
-
-type VialItem = {
-  id: string;
-  name: string;
-  sub: string;
-  tag?: string;
-  tagColor?: string;
-  cta: string;
-  ctaKind: 'equipped' | 'equip' | 'locked';
-};
-
-const vials: VialItem[] = [
-  { id: '1', name: 'Standard Cylinder', sub: 'Default Classic', tag: 'Equipped', tagColor: '#10B981', cta: 'In Use', ctaKind: 'equipped' },
-  { id: '2', name: 'Alchemist Flask', sub: 'Erlenmeyer Core', tag: '250ml', tagColor: '#00B2FE', cta: 'Equip', ctaKind: 'equip' },
-  { id: '3', name: 'Potion Bottle', sub: 'Curved Witching Phial', tag: 'Cork Stopper', tagColor: '#F59E0B', cta: 'Equip', ctaKind: 'equip' },
-  { id: '4', name: 'Galaxy Shards', sub: '4/5 Shards', tag: 'Epic Tier', tagColor: '#A855F7', cta: '500', ctaKind: 'locked' },
-  { id: '5', name: 'Cryo Tube', sub: 'Reinforced Chamber', tag: 'Tech', tagColor: '#00B2FE', cta: '1,200', ctaKind: 'locked' },
-  { id: '6', name: 'Prism Crystal', sub: 'Faceted VIP Glow', tag: 'Legendary', tagColor: '#FF2E93', cta: 'VIP Pass', ctaKind: 'locked' },
+const tabs: { slot: CosmeticSlot; label: string; section: string }[] = [
+  { slot: 'vial', label: 'Vial Shapes', section: 'Vial Collection' },
+  { slot: 'fluid', label: 'Fluid Styles', section: 'Fluid Collection' },
+  { slot: 'stopper', label: 'Stoppers', section: 'Stopper Collection' },
 ];
 
-const CTA_VARIANT: Record<VialItem['ctaKind'], ButtonVariant> = { equipped: 'cream', equip: 'green', locked: 'gold' };
+/** Fluid styles show several colors so the recolor is visible; other slots show one. */
+const PREVIEW_STACK: Record<CosmeticSlot, TubeColor[]> = {
+  vial: ['cyan', 'purple', 'yellow'],
+  fluid: ['red', 'green', 'yellow'],
+  stopper: ['pink', 'cyan', 'orange'],
+};
+const CARD_STACK: Record<CosmeticSlot, TubeColor[]> = {
+  vial: ['cyan', 'cyan'],
+  fluid: ['pink', 'lime'],
+  stopper: ['orange', 'orange'],
+};
+
+type ItemAction = {
+  label: string;
+  variant: ButtonVariant;
+  icon?: React.ComponentProps<typeof MaterialIcons>['name'];
+  disabled: boolean;
+  onPress?: () => void;
+};
 
 export default function ThemesScreen() {
   const [tab, setTab] = useState(0);
+  const progress = useProgress();
+  const now = useNow();
   const { width, isTablet, isCompact, gutter } = useResponsive();
   // 2 cards per row on phones, 3 on tablets; sized from the centred column width.
   const columns = isTablet ? 3 : 2;
@@ -41,15 +49,58 @@ export default function ThemesScreen() {
   const columnW = Math.min(width, contentMaxWidth.page) - gutter * 2;
   const cardW = Math.floor((columnW - gridGap * (columns - 1)) / columns);
 
+  const { slot, section } = tabs[tab];
+  const items = itemsFor(slot);
+  const stars = totalStars(progress.records);
+  const owns = (item: CosmeticItem) => isOwned(item, progress.owned, progress.unlocked, stars);
+  const equippedId = progress.equipped[slot];
+  // The item shown in the big preview; tapping a card previews it without equipping.
+  const [previewIds, setPreviewIds] = useState<Partial<Record<CosmeticSlot, string>>>({});
+  const preview = items.find((i) => i.id === previewIds[slot]) ?? items.find((i) => i.id === equippedId) ?? items[0];
+  const bonusClaimed = progress.bonusDay === today(now);
+
+  function actionFor(item: CosmeticItem): ItemAction {
+    if (item.id === equippedId) return { label: 'In Use', variant: 'cream', icon: 'check', disabled: true };
+    if (owns(item)) return { label: 'Equip', variant: 'green', disabled: false, onPress: () => equipCosmetic(item.id) };
+    const u = item.unlock;
+    if (u.kind === 'coins') {
+      const affordable = progress.coins >= u.price;
+      return {
+        label: u.price.toLocaleString(),
+        variant: 'gold',
+        icon: 'monetization-on',
+        disabled: !affordable,
+        onPress: () => buyCosmetic(item.id),
+      };
+    }
+    if (u.kind === 'level') return { label: `Level ${u.level}`, variant: 'purple', icon: 'lock', disabled: true };
+    if (u.kind === 'stars') return { label: `${stars}/${u.stars}`, variant: 'purple', icon: 'star', disabled: true };
+    return { label: 'Equip', variant: 'green', disabled: false, onPress: () => equipCosmetic(item.id) };
+  }
+
+  /** Why a locked item can't be equipped yet, shown under the preview. */
+  function lockHint(item: CosmeticItem) {
+    const u = item.unlock;
+    if (owns(item)) return item.sub;
+    if (u.kind === 'coins')
+      return progress.coins >= u.price ? `Buy for ${u.price.toLocaleString()} coins` : `Need ${(u.price - progress.coins).toLocaleString()} more coins`;
+    if (u.kind === 'level') return `Unlocks when you reach level ${u.level}`;
+    if (u.kind === 'stars') return `Unlocks at ${u.stars} stars (you have ${stars})`;
+    return item.sub;
+  }
+
+  const previewAction = actionFor(preview);
+  const unlockedCount = items.filter(owns).length;
+
   return (
     <View style={styles.screen}>
       <GameHeader />
       <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]} showsVerticalScrollIndicator={false}>
         <View style={styles.tabsRow}>
           {tabs.map((t, i) => (
-            <Pressable key={t} onPress={() => setTab(i)}>
+            <Pressable key={t.slot} onPress={() => setTab(i)}>
               <Pill variant={i === tab ? 'purple' : 'cream'} radius={radii.full} style={styles.tabPill}>
-                <Text style={[styles.tabText, i === tab && styles.tabTextActive]}>{t}</Text>
+                <Text style={[styles.tabText, i === tab && styles.tabTextActive]}>{t.label}</Text>
               </Pill>
             </Pressable>
           ))}
@@ -62,66 +113,91 @@ export default function ThemesScreen() {
               <Text style={styles.liveText}>LIVE PREVIEW</Text>
             </View>
             <View style={styles.editionPill}>
-              <Text style={styles.editionText}>Standard Edition</Text>
+              <Text style={styles.editionText}>{preview.tag}</Text>
             </View>
           </View>
           <View style={styles.previewStage}>
             <Tube
-              colorsStack={['cyan', 'purple', 'yellow']}
+              colorsStack={PREVIEW_STACK[slot]}
               capacity={4}
               width={isTablet ? 80 : isCompact ? 54 : 64}
               height={isTablet ? 250 : isCompact ? 170 : 200}
+              look={{ ...progress.equipped, [slot]: preview.id }}
             />
           </View>
           <View style={styles.previewBottom}>
             <View style={{ flex: 1, minWidth: 160 }}>
-              <Text style={styles.previewTitle}>Standard Cylinder</Text>
-              <Text style={styles.previewSub}>Classic balanced acoustic crystal</Text>
+              <Text style={styles.previewTitle}>{preview.name}</Text>
+              <Text style={styles.previewSub}>{lockHint(preview)}</Text>
             </View>
-            <GradientButton label="Try in Game" icon="sports-esports" variant="purple" height={46} />
+            <GradientButton
+              label={previewAction.label}
+              icon={previewAction.icon}
+              variant={previewAction.variant}
+              disabled={previewAction.disabled}
+              onPress={previewAction.onPress}
+              height={46}
+            />
           </View>
         </Panel>
 
         <View style={styles.sectionHeader}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <MaterialIcons name="category" size={18} color={colors.goldPale} style={styles.headerIcon} />
-            <Text style={styles.sectionTitle}>Vial Collections</Text>
+            <Text style={styles.sectionTitle}>{section}</Text>
           </View>
-          <Text style={styles.sectionMeta}>3 / 6 Unlocked</Text>
+          <Text style={styles.sectionMeta}>
+            {unlockedCount} / {items.length} Unlocked
+          </Text>
         </View>
 
         <View style={[styles.grid, { gap: gridGap }]}>
-          {vials.map((v) => (
-            <Panel key={v.id} style={[styles.card, { width: cardW }]} radius={22}>
-              {v.tag && (
-                <View style={[styles.cardTag, { backgroundColor: v.tagColor }]}>
-                  <Text style={styles.cardTagText} numberOfLines={1}>
-                    {v.ctaKind === 'equipped' ? '✓ ' : ''}
-                    {v.tag}
+          {items.map((item) => {
+            const action = actionFor(item);
+            const equipped = item.id === equippedId;
+            return (
+              <Pressable key={item.id} onPress={() => setPreviewIds((p) => ({ ...p, [slot]: item.id }))}>
+                <Panel
+                  variant={item.id === preview.id ? 'highlight' : 'cream'}
+                  style={[styles.card, { width: cardW }]}
+                  radius={22}
+                >
+                  <View style={[styles.cardTag, { backgroundColor: equipped ? '#10B981' : item.tagColor }]}>
+                    <Text style={styles.cardTagText} numberOfLines={1}>
+                      {equipped ? '✓ Equipped' : item.tag}
+                    </Text>
+                  </View>
+                  <View style={styles.cardTubeWrap}>
+                    <Tube
+                      colorsStack={CARD_STACK[slot]}
+                      capacity={2}
+                      width={40}
+                      height={90}
+                      selected={equipped}
+                      look={{ ...progress.equipped, [slot]: item.id }}
+                    />
+                  </View>
+                  <Text style={styles.cardName} numberOfLines={1}>
+                    {item.name}
                   </Text>
-                </View>
-              )}
-              <View style={styles.cardTubeWrap}>
-                <Tube colorsStack={['cyan']} capacity={2} width={40} height={90} selected={v.ctaKind === 'equipped'} />
-              </View>
-              <Text style={styles.cardName} numberOfLines={1}>
-                {v.name}
-              </Text>
-              <Text style={styles.cardSub} numberOfLines={1}>
-                {v.sub}
-              </Text>
-              <GradientButton
-                label={v.cta}
-                icon={v.ctaKind === 'equipped' ? 'check' : v.ctaKind === 'locked' && v.cta !== 'VIP Pass' ? 'monetization-on' : undefined}
-                variant={CTA_VARIANT[v.ctaKind]}
-                height={40}
-                compact
-                fullWidth
-                disabled={v.ctaKind === 'equipped'}
-                style={{ marginTop: 6 }}
-              />
-            </Panel>
-          ))}
+                  <Text style={styles.cardSub} numberOfLines={1}>
+                    {item.sub}
+                  </Text>
+                  <GradientButton
+                    label={action.label}
+                    icon={action.icon}
+                    variant={action.variant}
+                    height={40}
+                    compact
+                    fullWidth
+                    disabled={action.disabled}
+                    onPress={action.onPress}
+                    style={{ marginTop: 6 }}
+                  />
+                </Panel>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Panel variant="purple" radius={radii.full} style={styles.treasuryBar}>
@@ -131,10 +207,18 @@ export default function ThemesScreen() {
             </View>
             <View>
               <Text style={styles.treasuryLabel}>TREASURY</Text>
-              <Text style={styles.treasuryValue}>1,450</Text>
+              <Text style={styles.treasuryValue}>{progress.coins.toLocaleString()}</Text>
             </View>
           </View>
-          <GradientButton label="Watch for +50" icon="play-circle-filled" variant="gold" height={44} compact={isCompact} />
+          <GradientButton
+            label={bonusClaimed ? `Next in ${formatCountdown(msUntilReset(now))}` : `Daily +${DAILY_BONUS}`}
+            icon={bonusClaimed ? 'schedule' : 'card-giftcard'}
+            variant="gold"
+            height={44}
+            compact={isCompact}
+            disabled={bonusClaimed}
+            onPress={claimDailyBonus}
+          />
         </Panel>
         <View style={{ height: 24 }} />
       </ScrollView>

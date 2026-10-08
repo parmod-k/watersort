@@ -2,6 +2,8 @@ import React from 'react';
 import { Animated, Text, View, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fontFamily, hiddenGradient, liquidGradients } from '../../theme/tokens';
+import { Equipped, fluidPalette, stopperLook, vialLook } from '../../game/cosmetics';
+import { useProgress } from '../../game/progress';
 
 export type TubeColor = keyof typeof liquidGradients;
 
@@ -21,6 +23,8 @@ type Props = {
   pourCount?: number;
   /** How many bottom segments are "?" mystery layers whose color is not revealed yet. */
   hiddenCount?: number;
+  /** Cosmetics to draw instead of the player's equipped ones (Themes tab previews). */
+  look?: Partial<Equipped>;
 };
 
 export default function Tube({
@@ -35,15 +39,20 @@ export default function Tube({
   growColor,
   pourCount = 1,
   hiddenCount = 0,
+  look,
 }: Props) {
+  const { equipped } = useProgress();
+  const vial = vialLook(look?.vial ?? equipped.vial);
+  const stopper = stopperLook(look?.stopper ?? equipped.stopper);
+  const palette = fluidPalette(look?.fluid ?? equipped.fluid);
   // Liquid fills the glass inside its border (3) and padding (3) on each end.
   const slotHeight = (height - 12) / capacity;
   const isFull = colorsStack.length === capacity;
   const allSame = isFull && colorsStack.every((c) => c === colorsStack[0]);
   const glowing = complete || allSame;
   // Rounded capsule: soft shoulders at the mouth, a fuller curve at the base.
-  const topRadius = Math.min(20, width * 0.37);
-  const bottomRadius = Math.min(24, width * 0.42);
+  const topRadius = Math.min(vial.topCap, width * vial.top);
+  const bottomRadius = Math.min(vial.bottomCap, width * vial.bottom);
 
   return (
     <View
@@ -56,6 +65,7 @@ export default function Tube({
           borderTopRightRadius: topRadius,
           borderBottomLeftRadius: bottomRadius,
           borderBottomRightRadius: bottomRadius,
+          borderColor: vial.border,
         },
         selected && styles.selectedShell,
         glowing && !selected && styles.glowShell,
@@ -63,13 +73,26 @@ export default function Tube({
     >
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.06)', 'rgba(200,230,255,0.2)']}
+        colors={vial.tint}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[StyleSheet.absoluteFill, { borderRadius: topRadius }]}
       />
       {/* neck lip */}
-      <View style={[styles.lip, { width: width * 0.6, left: width * 0.2 - 3 }, selected && styles.lipSelected]} />
+      <View
+        style={[
+          styles.lip,
+          {
+            width: width * 0.6,
+            left: width * 0.2 - 3,
+            top: -stopper.height,
+            height: stopper.height,
+            backgroundColor: stopper.fill,
+            borderColor: stopper.border,
+          },
+          selected && styles.lipSelected,
+        ]}
+      />
 
       <View
         style={[
@@ -89,7 +112,7 @@ export default function Tube({
             const depth = colorsStack.length - 1 - idx;
             const isDraining = !!shrinkAnim && depth < pourCount;
             const isHidden = idx < hiddenCount;
-            const grad = isHidden ? hiddenGradient : liquidGradients[color] ?? liquidGradients.cyan;
+            const grad = isHidden ? hiddenGradient : palette[color] ?? palette.cyan;
             const segStyle = isDraining
               ? {
                   height: shrinkAnim!.interpolate({
@@ -121,7 +144,7 @@ export default function Tube({
               ]}
             >
               <LinearGradient
-                colors={liquidGradients[growColor] ?? liquidGradients.cyan}
+                colors={palette[growColor] ?? palette.cyan}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={StyleSheet.absoluteFill}

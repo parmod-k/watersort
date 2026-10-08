@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import GameHeader from '../../components/GameHeader';
@@ -8,8 +8,10 @@ import Panel from '../../components/ui/Panel';
 import Pill from '../../components/ui/Pill';
 import GradientButton from '../../components/ui/GradientButton';
 import { artTextShadow, chassis, colors, fontFamily, radii, spacing } from '../../theme/tokens';
-import { colorCountFor, isMysteryLevel } from '../../game/levels';
-import { playLevel, useProgress } from '../../game/progress';
+import { generateLevel, isMysteryLevel } from '../../game/levels';
+import { dailyTrial, pinDailyTrial, playLevel, startDailyTrial, useProgress } from '../../game/progress';
+import { chapterOf, chapterRange, chapterTheme, LEVELS_PER_CHAPTER, levelLabel } from '../../game/chapters';
+import { formatCountdown, msUntilReset, today, trialNumber, TRIAL_REWARD, useNow } from '../../game/daily';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 type LevelState = 'locked' | 'current' | 'done';
@@ -22,26 +24,7 @@ type LevelNode = {
   offset: number;
 };
 
-const LEVELS_PER_CHAPTER = 20;
-const CHAPTER_NAMES = [
-  'First Drops',
-  'Color Splash',
-  'Prismatic Laboratory',
-  'Shade Shifter',
-  'Mystery Vault',
-  'Liquid Labyrinth',
-];
 const OFFSETS = [0, 55, -50, 45, -20, 60, -30];
-
-function chapterName(chapter: number) {
-  return CHAPTER_NAMES[(chapter - 1) % CHAPTER_NAMES.length];
-}
-
-/** A short description of what makes a level hard, shown under the current node. */
-function levelLabel(level: number) {
-  if (isMysteryLevel(level)) return 'Mystery Layers';
-  return `${colorCountFor(level)} Colors`;
-}
 
 function Stars({ count }: { count: number }) {
   return (
@@ -67,32 +50,55 @@ const NODE_LOOKS: Record<LevelState, { fill: [string, string, string]; border: s
 
 export default function StagesScreen() {
   const progress = useProgress();
+  const now = useNow();
+  const day = today(now);
+  const isFocused = useIsFocused();
   const { width, isTablet, gutter } = useResponsive();
   // Wider screens spread the winding path out further.
   const offsetScale = Math.min(Math.max(width / 400, 0.75), 1.6);
   const frontier = progress.unlocked;
-  const chapter = Math.ceil(frontier / LEVELS_PER_CHAPTER);
-  const chapterStart = (chapter - 1) * LEVELS_PER_CHAPTER + 1;
-  const solvedInChapter = frontier - chapterStart;
-  const chapterPct = Math.round((solvedInChapter / LEVELS_PER_CHAPTER) * 100);
+  const currentChapter = chapterOf(frontier);
 
-  // A window around the newest unlocked level, highest at the top of the path.
-  const first = Math.max(1, frontier - 4);
+  // The chapter being browsed; follows the player when they reach a new one.
+  const [chapter, setChapter] = useState(currentChapter);
+  useEffect(() => setChapter(currentChapter), [currentChapter]);
+  const theme = chapterTheme(chapter);
+  const { first, last } = chapterRange(chapter);
+  const solvedInChapter = Math.min(LEVELS_PER_CHAPTER, Math.max(0, frontier - first));
+  const chapterPct = Math.round((solvedInChapter / LEVELS_PER_CHAPTER) * 100);
+  let chapterStars = 0;
+  for (let id = first; id <= last; id++) chapterStars += progress.records[id]?.stars ?? 0;
+
+  // The chapter's levels, highest at the top of the path. In the current chapter the path stops a few
+  // levels past the newest one so the player's position stays near the top of the screen.
+  const top = chapter === currentChapter ? Math.min(last, frontier + 3) : last;
   const levels: LevelNode[] = [];
-  for (let id = frontier + 2; id >= first; id--) {
+  for (let id = top; id >= first; id--) {
     levels.push({
       id,
       state: id > frontier ? 'locked' : id === frontier ? 'current' : 'done',
       stars: progress.records[id]?.stars,
-      label: id === frontier ? levelLabel(id) : undefined,
+      label: id === frontier ? levelLabel(id) : isMysteryLevel(id) ? 'Mystery' : undefined,
       offset: OFFSETS[id % OFFSETS.length],
     });
   }
-  let nextMystery = frontier + 1;
-  while (!isMysteryLevel(nextMystery)) nextMystery++;
+  const nextTheme = chapterTheme(chapter + 1);
+  const nextUnlocked = frontier > last;
+
+  // Pin today's trial while the tab is open so clearing levels doesn't swap it mid-day.
+  useEffect(() => {
+    if (isFocused) pinDailyTrial();
+  }, [isFocused, day]);
+  const trial = dailyTrial(progress, day);
+  const trialPar = useMemo(() => generateLevel(trial.level).par, [trial.level]);
 
   function start(level: number) {
     playLevel(level);
+    router.navigate('/');
+  }
+
+  function acceptTrial() {
+    startDailyTrial();
     router.navigate('/');
   }
 
@@ -103,13 +109,13 @@ export default function StagesScreen() {
         <Panel style={styles.chapterCard}>
           <View style={styles.chapterRow}>
             <View style={styles.chapterLeft}>
-              <View style={styles.chapterIcon}>
-                <MaterialIcons name="science" size={22} color="#FFFFFF" />
+              <View style={[styles.chapterIcon, { backgroundColor: theme.tint }]}>
+                <MaterialIcons name={theme.icon} size={22} color="#FFFFFF" />
               </View>
               <View style={{ flexShrink: 1 }}>
                 <Text style={styles.chapterLabel}>CHAPTER {chapter}</Text>
                 <Text style={styles.chapterTitle} numberOfLines={1}>
-                  {chapterName(chapter)}
+                  {theme.name}
                 </Text>
               </View>
             </View>
@@ -129,6 +135,19 @@ export default function StagesScreen() {
               style={[styles.progressFill, { width: `${Math.max(chapterPct, 4)}%` }]}
             />
           </View>
+          <View style={styles.chapterNav}>
+            <ChapterArrow icon="chevron-left" disabled={chapter <= 1} onPress={() => setChapter(chapter - 1)} />
+            <View style={styles.chapterStars}>
+              <MaterialIcons name="star" size={15} color={colors.gold} />
+              <Text style={styles.chapterStarsText}>
+                {chapterStars} / {LEVELS_PER_CHAPTER * 3}
+              </Text>
+              <Text style={styles.chapterRangeText}>
+                · Levels {first}–{last}
+              </Text>
+            </View>
+            <ChapterArrow icon="chevron-right" disabled={chapter >= currentChapter} onPress={() => setChapter(chapter + 1)} />
+          </View>
         </Panel>
 
         <Panel variant="highlight" style={styles.trialCard}>
@@ -136,45 +155,62 @@ export default function StagesScreen() {
             <Pill variant="purple" radius={radii.full} style={styles.trialRibbon}>
               <MaterialIcons name="hourglass-top" size={14} color={colors.goldPale} />
               <Text style={styles.trialRibbonText} numberOfLines={1}>
-                Daily Trial #12
+                Daily Trial #{trialNumber(day)}
               </Text>
             </Pill>
             <View style={styles.trialTimer}>
               <MaterialIcons name="schedule" size={14} color={colors.guava} />
-              <Text style={styles.trialTimerText}>04:22:15</Text>
+              <Text style={styles.trialTimerText}>{formatCountdown(msUntilReset(now))}</Text>
             </View>
           </View>
-          <Text style={styles.trialDesc}>Beat in under 10 liquid pours</Text>
+          <Text style={styles.trialDesc}>
+            {trial.done
+              ? 'Trial complete! A new one arrives at midnight.'
+              : `Clear Level ${trial.level} in ${trialPar} pours or fewer`}
+          </Text>
           <View style={styles.trialRewardsRow}>
             <View style={styles.trialReward}>
               <MaterialIcons name="monetization-on" size={16} color={colors.goldRim} />
-              <Text style={styles.trialRewardText}>+100</Text>
+              <Text style={styles.trialRewardText}>+{TRIAL_REWARD}</Text>
             </View>
             <View style={styles.trialReward}>
-              <MaterialIcons name="tips-and-updates" size={16} color={colors.purple} />
-              <Text style={styles.trialRewardText}>+1 Hint</Text>
+              <MaterialIcons name={isMysteryLevel(trial.level) ? 'help-outline' : 'palette'} size={16} color={colors.purple} />
+              <Text style={styles.trialRewardText}>{levelLabel(trial.level)}</Text>
             </View>
             <View style={{ flexGrow: 1 }} />
-            <GradientButton label="Accept" icon="arrow-forward" height={44} />
+            <GradientButton
+              label={trial.done ? 'Done' : 'Accept'}
+              icon={trial.done ? 'check' : 'arrow-forward'}
+              variant={trial.done ? 'cream' : 'green'}
+              disabled={trial.done}
+              height={44}
+              onPress={acceptTrial}
+            />
           </View>
         </Panel>
 
         <View style={styles.path}>
-          <View style={styles.boss}>
+          <Pressable
+            style={styles.boss}
+            disabled={!nextUnlocked || chapter >= currentChapter}
+            onPress={() => setChapter(chapter + 1)}
+          >
             <View style={styles.bossRim}>
               <LinearGradient colors={['#E879F9', '#9333EA', '#4338CA']} style={styles.bossBox}>
-                <MaterialIcons name="card-giftcard" size={32} color={colors.goldPale} />
+                <MaterialIcons name={nextTheme.icon} size={32} color={colors.goldPale} />
               </LinearGradient>
               <View style={styles.bossLock}>
-                <MaterialIcons name="lock" size={12} color={colors.purpleInk} />
+                <MaterialIcons name={nextUnlocked ? 'lock-open' : 'lock'} size={12} color={colors.purpleInk} />
               </View>
             </View>
             <View style={styles.bossLabelRow}>
               <MaterialIcons name="stars" size={14} color={colors.goldPale} />
-              <Text style={styles.bossLabel}>Mystery Flask: Hidden Layers</Text>
+              <Text style={styles.bossLabel}>
+                Chapter {chapter + 1}: {nextTheme.name}
+              </Text>
             </View>
-            <Text style={styles.bossSub}>Level {nextMystery}</Text>
-          </View>
+            <Text style={styles.bossSub}>{nextUnlocked ? 'Unlocked · tap to open' : `Unlocks at Level ${last + 1}`}</Text>
+          </Pressable>
 
           {levels.map((lvl) => {
             const look = NODE_LOOKS[lvl.state];
@@ -232,6 +268,22 @@ export default function StagesScreen() {
   );
 }
 
+function ChapterArrow({
+  icon,
+  disabled,
+  onPress,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable disabled={disabled} onPress={onPress} hitSlop={8} style={[styles.chapterArrow, disabled && { opacity: 0.35 }]}>
+      <MaterialIcons name={icon} size={22} color="#FFFFFF" />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { width: '100%', maxWidth: contentMaxWidth.page, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: 24 },
@@ -243,7 +295,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: colors.lagoon,
     borderWidth: 2,
     borderColor: '#FFFFFF',
     alignItems: 'center',
@@ -263,6 +314,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 6 },
+  chapterNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  chapterArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.purple,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chapterStars: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
+  chapterStarsText: { color: colors.ink, fontFamily: fontFamily.black, fontSize: 13 },
+  chapterRangeText: { color: colors.inkSoft, fontFamily: fontFamily.bold, fontSize: 12 },
 
   trialCard: { padding: 14, marginBottom: spacing.xl },
   trialTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 },

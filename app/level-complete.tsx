@@ -33,13 +33,15 @@ export default function LevelCompleteScreen() {
     efficiency: string;
     time: string;
     restraint: string;
+    trial: string;
   }>();
   const { isCompact, isShort, gutter } = useResponsive();
   const level = Number(params.level ?? 1);
   const moves = Number(params.moves ?? 0);
   const par = Number(params.par ?? 0);
   const stars = Number(params.stars ?? 3);
-  const coins = Number(params.coins ?? 0);
+  const trialBonus = Number(params.trial ?? 0);
+  const coins = Number(params.coins ?? 0) + trialBonus;
   const usedUndo = params.undo === '1';
   const usedExtra = params.extra === '1';
   const seconds = Number(params.seconds ?? 0);
@@ -138,7 +140,9 @@ export default function LevelCompleteScreen() {
                   </View>
                   <View style={{ flexShrink: 1 }}>
                     <Text style={styles.statTitle}>Victory Coins</Text>
-                    <Text style={styles.statSub}>Base reward + efficiency</Text>
+                    <Text style={styles.statSub}>
+                      {trialBonus > 0 ? `Includes Daily Trial +${trialBonus}` : 'Base reward + efficiency'}
+                    </Text>
                   </View>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>

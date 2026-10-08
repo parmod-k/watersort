@@ -1,4 +1,4 @@
-import { starsFor } from './levels';
+import { isMysteryLevel, starsFor } from './levels';
 
 /** Outcome of one cleared level. */
 export type LevelResult = {
@@ -70,6 +70,7 @@ export type PlayerStats = {
   noUndo: number;
   /** Clears under 45 seconds. */
   fast: number;
+  mystery: number;
 };
 
 export function statsFor(records: Record<number, LevelRecord>, unlocked: number): PlayerStats {
@@ -82,6 +83,7 @@ export function statsFor(records: Record<number, LevelRecord>, unlocked: number)
     perfect: all.filter((r) => r.stars === 3 && !r.usedUndo && !r.usedExtraBottle).length,
     noUndo: all.filter((r) => !r.usedUndo).length,
     fast: all.filter((r) => r.seconds < 45).length,
+    mystery: Object.keys(records).filter((level) => isMysteryLevel(Number(level))).length,
   };
 }
 

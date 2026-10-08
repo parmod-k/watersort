@@ -1,6 +1,8 @@
 import 'expo-sqlite/localStorage/install';
 import { useSyncExternalStore } from 'react';
 import { bestRecord, LevelRecord, LevelResult, recordFor } from './scoring';
+import { cosmetic, CosmeticSlot, DEFAULT_EQUIPPED, Equipped, isOwned } from './cosmetics';
+import { DAILY_BONUS, pickTrialLevel, today, TRIAL_REWARD } from './daily';
 
 export type Progress = {
   /** Level currently loaded on the Play tab. */
@@ -13,6 +15,13 @@ export type Progress = {
   records: Record<number, LevelRecord>;
   coins: number;
   playerName: string;
+  /** Cosmetics bought with coins (level- and star-gated items unlock without being listed here). */
+  owned: string[];
+  equipped: Equipped;
+  /** Today's Daily Trial, pinned the first time it is shown so it can't change during the day. */
+  trial?: { day: number; level: number; done: boolean };
+  /** Day the free coin bonus was last claimed. */
+  bonusDay?: number;
 };
 
 const STORAGE_KEY = 'watersort.progress.v1';
@@ -23,7 +32,20 @@ const DEFAULTS: Progress = {
   records: {},
   coins: 1450,
   playerName: 'FluidMaster_99',
+  owned: [],
+  equipped: DEFAULT_EQUIPPED,
 };
+
+function loadEquipped(saved: unknown): Equipped {
+  const equipped = { ...DEFAULT_EQUIPPED };
+  if (saved && typeof saved === 'object') {
+    for (const slot of Object.keys(equipped) as CosmeticSlot[]) {
+      const id = (saved as Record<string, unknown>)[slot];
+      if (typeof id === 'string' && cosmetic(id)?.slot === slot) equipped[slot] = id;
+    }
+  }
+  return equipped;
+}
 
 /** Saves from before scores existed only kept stars; turn them into minimal records. */
 function migrateStars(stars: Record<number, number>): Record<number, LevelRecord> {
@@ -53,6 +75,13 @@ function load(): Progress {
             : {},
       coins: Number.isFinite(saved.coins) ? Number(saved.coins) : DEFAULTS.coins,
       playerName: typeof saved.playerName === 'string' && saved.playerName ? saved.playerName : DEFAULTS.playerName,
+      owned: Array.isArray(saved.owned) ? saved.owned.filter((id) => typeof id === 'string') : [],
+      equipped: loadEquipped(saved.equipped),
+      trial:
+        saved.trial && Number.isFinite(saved.trial.day) && Number.isFinite(saved.trial.level)
+          ? { day: saved.trial.day, level: saved.trial.level, done: !!saved.trial.done }
+          : undefined,
+      bonusDay: Number.isFinite(saved.bonusDay) ? saved.bonusDay : undefined,
     };
   } catch {
     return DEFAULTS;
@@ -91,9 +120,33 @@ export function playLevel(level: number) {
   set({ ...state, current: level, session: state.session + 1 });
 }
 
-/** Records a cleared level and returns its record (the new result, not necessarily the best). */
-export function completeLevel(level: number, result: LevelResult, coins: number): LevelRecord {
+export function totalStars(records: Record<number, LevelRecord>) {
+  return Object.values(records).reduce((s, r) => s + r.stars, 0);
+}
+
+/** Today's Daily Trial: the pinned one if it is from today, otherwise a fresh pick. */
+export function dailyTrial(p: Progress, day = today()) {
+  if (p.trial?.day === day) return p.trial;
+  return { day, level: pickTrialLevel(day, p.unlocked), done: false };
+}
+
+/** Pins today's trial so clearing levels later in the day doesn't change it. */
+export function pinDailyTrial() {
+  const trial = dailyTrial(state);
+  if (state.trial !== trial) set({ ...state, trial });
+}
+
+export function startDailyTrial() {
+  pinDailyTrial();
+  playLevel(state.trial!.level);
+}
+
+/** Records a cleared level. The trial bonus is paid when today's trial is beaten within par. */
+export function completeLevel(level: number, result: LevelResult, coins: number) {
   const record = recordFor(result);
+  const trial = state.trial;
+  const beatTrial = !!trial && trial.day === today() && !trial.done && trial.level === level && result.moves <= result.par;
+  const trialBonus = beatTrial ? TRIAL_REWARD : 0;
   set({
     ...state,
     // Resume on the next level if the app closes before "Next Level" is tapped. The session is
@@ -101,7 +154,36 @@ export function completeLevel(level: number, result: LevelResult, coins: number)
     current: Math.max(state.current, level + 1),
     unlocked: Math.max(state.unlocked, level + 1),
     records: { ...state.records, [level]: bestRecord(state.records[level], record) },
-    coins: state.coins + coins,
+    coins: state.coins + coins + trialBonus,
+    trial: beatTrial ? { ...trial!, done: true } : state.trial,
   });
-  return record;
+  return { record, trialBonus };
+}
+
+/** Buys a coin-priced cosmetic and equips it. Returns false if it can't be bought. */
+export function buyCosmetic(id: string) {
+  const item = cosmetic(id);
+  if (!item || item.unlock.kind !== 'coins' || state.owned.includes(id)) return false;
+  if (state.coins < item.unlock.price) return false;
+  set({
+    ...state,
+    coins: state.coins - item.unlock.price,
+    owned: [...state.owned, id],
+    equipped: { ...state.equipped, [item.slot]: id },
+  });
+  return true;
+}
+
+export function equipCosmetic(id: string) {
+  const item = cosmetic(id);
+  if (!item || !isOwned(item, state.owned, state.unlocked, totalStars(state.records))) return;
+  set({ ...state, equipped: { ...state.equipped, [item.slot]: id } });
+}
+
+/** Free coins once per day. Returns false if already claimed today. */
+export function claimDailyBonus() {
+  const day = today();
+  if (state.bonusDay === day) return false;
+  set({ ...state, coins: state.coins + DAILY_BONUS, bonusDay: day });
+  return true;
 }

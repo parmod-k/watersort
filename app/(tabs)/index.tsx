@@ -18,7 +18,8 @@ import Pill from '../../components/ui/Pill';
 import IconButton from '../../components/ui/IconButton';
 import Tube, { TubeColor } from '../../components/game/Tube';
 import { PourStream, SettleRipple } from '../../components/game/PourEffects';
-import { colors, fontFamily, liquidGradients, spacing } from '../../theme/tokens';
+import { colors, fontFamily, spacing } from '../../theme/tokens';
+import { fluidPalette } from '../../game/cosmetics';
 import {
   CAPACITY,
   canPour,
@@ -71,6 +72,7 @@ export default function PlayScreen() {
   const progress = useProgress();
   const levelNum = progress.current;
   const level = useMemo(() => generateLevel(levelNum), [levelNum]);
+  const palette = fluidPalette(progress.equipped.fluid);
 
   const [tubes, setTubes] = useState<TubeColor[][]>(() => level.tubes.map((t) => [...t]));
   const [hidden, setHidden] = useState<number[]>(() => [...level.hidden]);
@@ -170,7 +172,7 @@ export default function PlayScreen() {
     const t = setTimeout(() => {
       const record = recordFor(result);
       const coins = 100 + record.stars * 50;
-      completeLevel(levelNum, result, coins);
+      const { trialBonus } = completeLevel(levelNum, result, coins);
       const score = scoreFor(result);
       router.push({
         pathname: '/level-complete',
@@ -188,6 +190,7 @@ export default function PlayScreen() {
           efficiency: score.efficiency,
           time: score.time,
           restraint: score.restraint,
+          trial: trialBonus,
         },
       });
     }, 500);
@@ -673,7 +676,7 @@ export default function PlayScreen() {
               rise={streamPos.rise}
               glassWidth={streamPos.glassWidth}
               streamWidth={streamPos.streamWidth}
-              colors={liquidGradients[pourFx.color] ?? liquidGradients.cyan}
+              colors={palette[pourFx.color] ?? palette.cyan}
               streamAnim={streamAnim}
               growAnim={growAnim}
             />
@@ -684,7 +687,7 @@ export default function PlayScreen() {
               x={settleFx.x}
               y={settleFx.y}
               glassWidth={settleFx.width}
-              colors={liquidGradients[settleFx.color] ?? liquidGradients.cyan}
+              colors={palette[settleFx.color] ?? palette.cyan}
               onDone={() => setSettleFx(null)}
             />
           )}

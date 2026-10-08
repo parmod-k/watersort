@@ -7,7 +7,7 @@ import Panel from '../../components/ui/Panel';
 import Pill from '../../components/ui/Pill';
 import { artTextShadow, chassis, colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { useProgress } from '../../game/progress';
-import { BoardKind, buildBoard, leagueFor, statsFor } from '../../game/scoring';
+import { BoardEntry, BoardKind, buildBoard, leagueFor, PlayerStats, statsFor } from '../../game/scoring';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 const segments: { kind: BoardKind; label: string }[] = [
@@ -29,7 +29,34 @@ const PODIUM: [string, string, string][] = [
   ['#FDBA74', '#EA8A3E', '#B45309'],
 ];
 const AVATAR_TINTS = ['#00B2FE', '#FF2E93', '#10B981', '#A855F7', '#F59E0B', '#EF4444'];
+/** Rows shown when the player is near the top; further down, the top 3 plus the player's neighbours. */
 const SHOWN = 5;
+
+const LEAGUE_TINTS: Record<string, string> = {
+  Bronze: '#B45309',
+  Silver: '#94A3B8',
+  Gold: '#F59E0B',
+  Diamond: '#00B2FE',
+  Master: '#A855F7',
+};
+
+type MedalDef = {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  name: string;
+  desc: string;
+  goal: number;
+  color: string;
+  value: (s: PlayerStats) => number;
+};
+
+const MEDALS: MedalDef[] = [
+  { icon: 'bolt', name: 'Speed Pourer', desc: 'Clear 10 levels in under 45s', goal: 10, color: colors.gold, value: (s) => s.fast },
+  { icon: 'psychology', name: 'Pure Genius', desc: 'Clear 30 levels without Undo', goal: 30, color: colors.purpleLight, value: (s) => s.noUndo },
+  { icon: 'verified', name: 'Perfectionist', desc: '20 perfect 3-star sorts', goal: 20, color: colors.green, value: (s) => s.perfect },
+  { icon: 'star', name: 'Star Collector', desc: 'Earn 150 stars', goal: 150, color: colors.guava, value: (s) => s.stars },
+  { icon: 'help-center', name: 'Mystery Master', desc: 'Clear 5 mystery levels', goal: 5, color: colors.amber, value: (s) => s.mystery },
+  { icon: 'emoji-events', name: 'Marathon', desc: 'Clear 100 levels', goal: 100, color: colors.lagoon, value: (s) => s.cleared },
+];
 
 function formatValue(kind: BoardKind, e: { level: number; stars: number; score: number }) {
   if (kind === 'level') return `Lvl ${e.level}`;
@@ -44,6 +71,7 @@ function Medal({
   value,
   goal,
   color,
+  width,
 }: {
   icon: keyof typeof MaterialIcons.glyphMap;
   name: string;
@@ -51,10 +79,11 @@ function Medal({
   value: number;
   goal: number;
   color: string;
+  width: number;
 }) {
   const done = value >= goal;
   return (
-    <Panel style={styles.medalCard} radius={22}>
+    <Panel style={[styles.medalCard, { width }]} radius={22}>
       <View style={[styles.medalCircle, { backgroundColor: done ? color : colors.creamEdge }]}>
         <MaterialIcons name={icon} size={26} color={done ? '#FFFFFF' : colors.inkMuted} />
       </View>
@@ -72,7 +101,9 @@ function Medal({
 
 export default function RankScreen() {
   const [segment, setSegment] = useState(0);
-  const { gutter } = useResponsive();
+  const { width, isTablet, gutter } = useResponsive();
+  const medalColumns = isTablet ? 3 : 2;
+  const medalW = Math.floor((Math.min(width, contentMaxWidth.page) - gutter * 2 - 12 * (medalColumns - 1)) / medalColumns);
   const progress = useProgress();
   const stats = statsFor(progress.records, progress.unlocked);
   const league = leagueFor(stats.score);
@@ -89,6 +120,12 @@ export default function RankScreen() {
   const myScoreRank = scoreBoard.find((e) => e.isMe)!.rank;
   const topPct = Math.max(1, Math.round((myScoreRank / scoreBoard.length) * 100));
   const avgScore = stats.cleared > 0 ? Math.round(stats.score / stats.cleared) : 0;
+  const leagueTint = LEAGUE_TINTS[league.name] ?? colors.lagoon;
+  const medalsEarned = MEDALS.filter((m) => m.value(stats) >= m.goal).length;
+
+  // Near the top: the top rows. Further down: the podium, a gap, then the player and their neighbours.
+  const rows: (BoardEntry | null)[] =
+    myIndex < SHOWN ? board.slice(0, SHOWN) : [...board.slice(0, 3), null, ...board.slice(myIndex - 1, myIndex + 2)];
 
   // The nearest rival ranked above the player on this board.
   const ahead = board.filter((e) => !e.isMe && e.rank < myEntry.rank).pop();
@@ -130,7 +167,7 @@ export default function RankScreen() {
           </View>
 
           <View style={styles.leagueRow}>
-            <View style={styles.leagueIcon}>
+            <View style={[styles.leagueIcon, { backgroundColor: leagueTint }]}>
               <MaterialIcons name="shield" size={20} color="#FFFFFF" />
             </View>
             <View style={{ flex: 1 }}>
@@ -182,7 +219,14 @@ export default function RankScreen() {
           </View>
         </View>
 
-        {board.slice(0, SHOWN).map((p, idx) => {
+        {rows.map((p, idx) => {
+          if (!p) {
+            return (
+              <View key="gap" style={styles.rowGap}>
+                <MaterialIcons name="more-vert" size={20} color="#FFFFFF" style={artTextShadow} />
+              </View>
+            );
+          }
           const medal = p.rank <= 3 ? PODIUM[p.rank - 1] : undefined;
           return (
             <Panel
@@ -201,7 +245,7 @@ export default function RankScreen() {
                   <Text style={styles.rankNum}>{p.rank}</Text>
                 </View>
               )}
-              <View style={[styles.playerAvatar, { backgroundColor: AVATAR_TINTS[idx % AVATAR_TINTS.length] }]}>
+              <View style={[styles.playerAvatar, { backgroundColor: AVATAR_TINTS[board.indexOf(p) % AVATAR_TINTS.length] }]}>
                 <Text style={styles.playerInitial}>{p.name.charAt(0)}</Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -245,19 +289,15 @@ export default function RankScreen() {
             <MaterialIcons name="military-tech" size={18} color={colors.goldPale} style={artTextShadow} />
             <Text style={styles.sectionTitle}>Alchemy Medals</Text>
           </View>
-          <Text style={styles.sectionMeta}>{stats.cleared} levels cleared</Text>
+          <Text style={styles.sectionMeta}>
+            {medalsEarned} / {MEDALS.length} earned
+          </Text>
         </View>
 
         <View style={styles.medalsRow}>
-          <Medal icon="bolt" name="Speed Pourer" desc="Clear 10 levels in under 45s" value={stats.fast} goal={10} color={colors.gold} />
-          <Medal
-            icon="psychology"
-            name="Pure Genius"
-            desc="Clear 30 levels without Undo"
-            value={stats.noUndo}
-            goal={30}
-            color={colors.purpleLight}
-          />
+          {MEDALS.map((m) => (
+            <Medal key={m.name} {...m} value={m.value(stats)} width={medalW} />
+          ))}
         </View>
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -343,7 +383,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 11,
-    backgroundColor: colors.lagoon,
     borderWidth: 2,
     borderColor: '#FFFFFF',
     alignItems: 'center',
@@ -388,6 +427,7 @@ const styles = StyleSheet.create({
   standingsTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 15, ...artTextShadow },
   standingsMeta: { color: colors.onArtGold, fontFamily: fontFamily.bold, fontSize: 11, ...artTextShadow },
 
+  rowGap: { alignItems: 'center', marginTop: -2, marginBottom: 6 },
   playerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 8 },
   rankBadge: {
     width: 30,
@@ -428,8 +468,8 @@ const styles = StyleSheet.create({
   sectionTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 17, ...artTextShadow },
   sectionMeta: { color: colors.onArtGold, fontFamily: fontFamily.black, fontSize: 12, ...artTextShadow },
 
-  medalsRow: { flexDirection: 'row', gap: 12 },
-  medalCard: { flex: 1, padding: 12, alignItems: 'center', gap: 3 },
+  medalsRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12 },
+  medalCard: { padding: 12, alignItems: 'center', gap: 3 },
   medalCircle: {
     width: 56,
     height: 56,
