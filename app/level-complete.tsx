@@ -1,21 +1,72 @@
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Tube from '../components/game/Tube';
+import { Confetti, SparkleBurst, SparkleField } from '../components/game/Celebration';
 import Panel from '../components/ui/Panel';
 import GradientButton from '../components/ui/GradientButton';
 import IconButton from '../components/ui/IconButton';
 import { artTextShadow, colors, fontFamily, liquidOrder, spacing, titleTextShadow } from '../theme/tokens';
 import { playLevel } from '../game/progress';
 import { SCORE_MAX } from '../game/scoring';
+import { playSfx } from '../game/sfx';
 import { useResponsive } from '../theme/responsive';
 
 function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+const CHEERS = ['Well Done!', 'Great Job!', 'Amazing!'];
+const STAR_DELAY = 520;
+const STAR_GAP = 280;
+
+/** A star that drops in with a spin and, if earned, lands with a sparkle burst and a chime. */
+function PopStar({ size, earned, index }: { size: number; earned: boolean; index: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  const [landed, setLanded] = useState(false);
+
+  useEffect(() => {
+    const delay = STAR_DELAY + index * STAR_GAP;
+    const anim = Animated.sequence([
+      Animated.delay(delay),
+      Animated.spring(t, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+    ]);
+    anim.start();
+    // Each earned star rings a note higher than the last.
+    const timer = setTimeout(() => {
+      if (!earned) return;
+      setLanded(true);
+      playSfx('chime', { volume: 0.55, rate: 1 + index * 0.12 });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }, delay + 120);
+    return () => {
+      anim.stop();
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      {landed && <SparkleBurst size={size * 2.1} count={9} />}
+      <Animated.View
+        style={{
+          opacity: t.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),
+          transform: [
+            { scale: t.interpolate({ inputRange: [0, 1], outputRange: [2.4, 1] }) },
+            { rotate: t.interpolate({ inputRange: [0, 1], outputRange: ['-140deg', '0deg'] }) },
+          ],
+        }}
+      >
+        <MaterialIcons name="star" size={size} color={earned ? colors.goldPale : '#E7DCC6'} style={styles.star} />
+      </Animated.View>
+    </View>
+  );
 }
 
 export default function LevelCompleteScreen() {
@@ -51,6 +102,28 @@ export default function LevelCompleteScreen() {
   // Show up to four of the colors this level used.
   const purity = liquidOrder.slice(0, Math.min(4, Number(params.colors ?? 4))).map((c) => ({ name: capitalize(c), color: c }));
 
+  // Entrance: the sheet springs up, the cheer pops and wobbles, and the stars drop in one by one.
+  const enter = useRef(new Animated.Value(0)).current;
+  const cheer = useRef(new Animated.Value(0)).current;
+  const wobble = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    Animated.spring(enter, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }).start();
+    Animated.sequence([
+      Animated.delay(180),
+      Animated.spring(cheer, { toValue: 1, friction: 3.5, tension: 140, useNativeDriver: true }),
+    ]).start();
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(wobble, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(wobble, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function goTo(next: number) {
     playLevel(next);
     // After a reload (web keeps the /level-complete URL) or a deep link there is nothing to go
@@ -67,6 +140,18 @@ export default function LevelCompleteScreen() {
           contentContainerStyle={[styles.centerWrap, { paddingHorizontal: gutter }]}
           showsVerticalScrollIndicator={false}
         >
+          <Animated.View
+            style={[
+              styles.sheetWrap,
+              {
+                opacity: enter.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),
+                transform: [
+                  { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) },
+                  { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) },
+                ],
+              },
+            ]}
+          >
           <Panel style={[styles.sheet, (isCompact || isShort) && { padding: 16 }]} radius={36} rim={6}>
             <View style={styles.badgeRow}>
               <MaterialIcons name="auto-awesome" size={14} color="#FFFFFF" />
@@ -76,15 +161,32 @@ export default function LevelCompleteScreen() {
               </Text>
             </View>
 
-            <Text style={[styles.title, isCompact && { fontSize: 28 }]}>LEVEL {level}</Text>
-            <Text style={[styles.cleared, isCompact && { fontSize: 34 }]}>CLEARED!</Text>
+            <View style={styles.heroWrap}>
+              <SparkleField count={isCompact ? 10 : 14} colors={[colors.goldPale, '#FFFFFF', colors.purpleLight]} />
+              <Animated.View
+                style={{
+                  alignItems: 'center',
+                  opacity: cheer.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),
+                  transform: [
+                    { scale: cheer.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
+                    { rotate: wobble.interpolate({ inputRange: [0, 1], outputRange: ['-3deg', '3deg'] }) },
+                  ],
+                }}
+              >
+                <Text style={[styles.congrats, isCompact && { fontSize: 24 }]}>CONGRATULATIONS!</Text>
+                <Text style={styles.cheer}>{CHEERS[Math.max(0, Math.min(2, stars - 1))]}</Text>
+              </Animated.View>
 
-            <View style={[styles.starsRow, isShort && { marginTop: 8 }]}>
-              <MaterialIcons name="star" size={44} color={stars >= 1 ? colors.goldPale : '#E7DCC6'} style={styles.star} />
-              <View style={styles.starCenterWrap}>
-                <MaterialIcons name="star" size={70} color={stars >= 2 ? colors.goldPale : '#E7DCC6'} style={styles.star} />
+              <Text style={[styles.title, isCompact && { fontSize: 28 }]}>LEVEL {level}</Text>
+              <Text style={[styles.cleared, isCompact && { fontSize: 34 }]}>CLEARED!</Text>
+
+              <View style={[styles.starsRow, isShort && { marginTop: 8 }]}>
+                <PopStar size={44} earned={stars >= 1} index={0} />
+                <View style={styles.starCenterWrap}>
+                  <PopStar size={70} earned={stars >= 2} index={1} />
+                </View>
+                <PopStar size={44} earned={stars >= 3} index={2} />
               </View>
-              <MaterialIcons name="star" size={44} color={stars >= 3 ? colors.goldPale : '#E7DCC6'} style={styles.star} />
             </View>
             <Text style={[styles.starsLabel, isShort && { marginBottom: 12 }]}>
               {stars} / 3 Stars Earned · {moves <= par ? 'Under Target Moves' : 'Over Target Moves'}
@@ -190,8 +292,10 @@ export default function LevelCompleteScreen() {
               <MaterialIcons name="close" size={20} color="#FFFFFF" />
             </Pressable>
           </Panel>
+          </Animated.View>
         </ScrollView>
       </SafeAreaView>
+      <Confetti count={isCompact ? 36 : 50} />
     </View>
   );
 }
@@ -199,7 +303,18 @@ export default function LevelCompleteScreen() {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.scrim },
   centerWrap: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg },
+  sheetWrap: { width: '100%', maxWidth: 480 },
   sheet: { width: '100%', maxWidth: 480, padding: 22, alignItems: 'center' },
+  heroWrap: { width: '100%', alignItems: 'center' },
+  congrats: {
+    color: colors.goldPale,
+    fontFamily: fontFamily.black,
+    fontSize: 28,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    ...titleTextShadow('#B45309'),
+  },
+  cheer: { color: colors.guava, fontFamily: fontFamily.extraBold, fontSize: 16, marginBottom: 6, textAlign: 'center' },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',

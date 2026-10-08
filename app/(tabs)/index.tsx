@@ -30,7 +30,7 @@ import {
 } from '../../game/levels';
 import { recordFor, scoreFor, targetSeconds } from '../../game/scoring';
 import { completeLevel, useProgress } from '../../game/progress';
-import { playSfx, stopSfx } from '../../game/sfx';
+import { playSfx, rampSfx, stopSfx } from '../../game/sfx';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 /** Upper bound on bottles on the board (largest level plus the extra-bottle power-up). */
@@ -84,6 +84,7 @@ export default function PlayScreen() {
   const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
 
   const isAnimating = useRef(false);
+  const pourSoundTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const solvedRef = useRef(false);
   const isFocused = useIsFocused();
   // Resting (untransformed) layouts, used to aim the pour precisely.
@@ -135,6 +136,7 @@ export default function PlayScreen() {
     setPourFx(null);
     setStreamPos(null);
     setSettleFx(null);
+    clearTimeout(pourSoundTimer.current);
     stopSfx('pour');
     setTilt(null);
     solvedRef.current = false;
@@ -283,6 +285,28 @@ export default function PlayScreen() {
     });
   }
 
+  /**
+   * The pour sound follows the liquid: silent while the stream falls from the lip, a soft trickle
+   * as it lands, a steady flow, then thinning out as the source empties. Like a real bottle, the
+   * note rises as the target fills and its air column gets shorter.
+   */
+  function playPourSound(filledBefore: number, count: number, pourMs: number) {
+    const pitch = (fill: number) => 0.88 + (fill / CAPACITY) * 0.26;
+    const LAND_MS = 120; // matches the stream's fall before the target starts filling
+    const ATTACK_MS = 90;
+    const flowMs = pourMs - LAND_MS;
+    const taperMs = Math.min(220, flowMs * 0.3);
+    clearTimeout(pourSoundTimer.current);
+    pourSoundTimer.current = setTimeout(() => {
+      playSfx('pour', { volume: 0.2, rate: pitch(filledBefore) });
+      rampSfx('pour', { volume: 0.75, rate: pitch(filledBefore + count * (ATTACK_MS / flowMs)) }, ATTACK_MS, () =>
+        rampSfx('pour', { rate: pitch(filledBefore + count * (1 - taperMs / flowMs)) }, flowMs - ATTACK_MS - taperMs, () =>
+          rampSfx('pour', { volume: 0.45, rate: pitch(filledBefore + count) }, taperMs),
+        ),
+      );
+    }, LAND_MS);
+  }
+
   function runPourAnimation({
     sourceId,
     targetId,
@@ -332,12 +356,11 @@ export default function PlayScreen() {
       setPourFx({ sourceId, targetId, color: pouredColor, count });
       setSettleFx(null);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      // Bigger pours sound a touch deeper.
-      playSfx('pour', { volume: 0.7, rate: 1.08 - count * 0.04 });
 
       // 2. The stream falls from the lip; the source drains and tips further while the target fills.
       //    More segments take proportionally longer to pour.
-      const pourMs = 260 + count * 220;
+      const pourMs = 300 + count * 240;
+      playPourSound(tubes[targetId].length, count, pourMs);
       Animated.parallel([
         Animated.timing(streamAnim, { toValue: 1, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }),
         Animated.timing(rotate[sourceId], {
@@ -352,9 +375,10 @@ export default function PlayScreen() {
           Animated.timing(growAnim, { toValue: 1, duration: pourMs - 60, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
         ]),
       ]).start(() => {
-        // 3. The stream's tail drops into the target and the surface settles.
+        // 3. The stream's tail drops into the target and the surface settles; the pour sound fades
+        //    out over the same 140ms so it dies away just as the last of the liquid lands.
+        stopSfx('pour', 140);
         Animated.timing(streamAnim, { toValue: 2, duration: 140, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
-          stopSfx('pour');
           const remaining = tubes[sourceId].length - count;
           const fillsBottle = isTubeComplete([...tubes[targetId], ...Array(count).fill(pouredColor)]);
           if (fillsBottle) {
