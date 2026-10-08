@@ -4,8 +4,17 @@
  * Keep these in step with game/scoring.ts and game/economy.ts in the app.
  */
 
-export class BadRequest extends Error {
-  status = 400;
+export class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export class BadRequest extends HttpError {
+  constructor(message) {
+    super(400, message);
+  }
 }
 
 /** Highest score one level can give (base + efficiency + time + restraint in scoring.ts). */
@@ -73,7 +82,14 @@ export function progress(body) {
     return { at: e.at, amount: e.amount, reason: e.reason };
   });
 
-  return { coins, level, stars, score, cleared, data: { records, owned, equipped }, ledger: entries };
+  // Daily state, kept so a restored account doesn't get today's trial or bonus a second time.
+  const trial =
+    body.trial && Number.isInteger(body.trial.day) && Number.isInteger(body.trial.level)
+      ? { day: body.trial.day, level: body.trial.level, done: !!body.trial.done }
+      : undefined;
+  const bonusDay = Number.isInteger(body.bonusDay) ? body.bonusDay : undefined;
+
+  return { coins, level, stars, score, cleared, data: { records, owned, equipped, trial, bonusDay }, ledger: entries };
 }
 
 export const BOARD_KINDS = /** @type {const} */ (['level', 'stars', 'score']);

@@ -27,6 +27,24 @@ npm test                 # API tests against a separate watersort_test database
 In development the app finds the API on port 4000 of the machine running `npm start` (phones must be
 on the same Wi-Fi). For a release build set `EXPO_PUBLIC_API_URL` (e.g. `https://api.example.com`).
 
+### Permanent accounts (Google / Apple sign-in)
+
+Every device starts as a guest. Settings → Account → "Continue with Google/Apple" links the guest to
+that login; signing in with the same login on a new phone, or after clearing app data, restores the
+account. Sign-in needs a development build (`npx expo run:android` / `run:ios`), not Expo Go or web.
+
+1. **Google Cloud console** → APIs & Services → Credentials, create OAuth client IDs:
+   - **Web application**: its client ID goes in the app's `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` *and* the
+     server's `GOOGLE_CLIENT_IDS`.
+   - **Android**: package `com.watersortapp` plus the SHA-1 of your signing key (`cd android; .\gradlew signingReport`).
+     Add one for the debug key and one for the release/Play signing key.
+   - **iOS**: bundle ID `com.watersortapp`. Its client ID goes in `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`, and its
+     reversed form (`com.googleusercontent.apps.…`) replaces `REPLACE_WITH_IOS_CLIENT_ID` in `app.json`.
+2. **Apple developer account** → Identifiers → `com.watersortapp` → enable *Sign in with Apple*.
+   The server's `APPLE_BUNDLE_IDS` must match the bundle ID.
+3. Put the `EXPO_PUBLIC_…` values in a `.env` file at the project root, then rebuild:
+   `npx expo prebuild --clean` and `npx expo run:android`.
+
 ## Build an Android APK for testing (local)
 
 ### Prerequisites

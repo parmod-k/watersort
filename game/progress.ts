@@ -60,37 +60,43 @@ function migrateStars(stars: Record<number, number>): Record<number, LevelRecord
   return records;
 }
 
+type Saved = Partial<Progress> & { stars?: Record<number, number> };
+
 /** Reads saved progress (SQLite-backed localStorage on native, browser localStorage on web). */
 function load(): Progress {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    const saved = JSON.parse(raw) as Partial<Progress> & { stars?: Record<number, number> };
-    const unlocked = Math.max(1, Number(saved.unlocked) || 1);
-    return {
-      ...DEFAULTS,
-      unlocked,
-      current: Math.min(unlocked, Math.max(1, Number(saved.current) || 1)),
-      records:
-        saved.records && typeof saved.records === 'object'
-          ? saved.records
-          : saved.stars && typeof saved.stars === 'object'
-            ? migrateStars(saved.stars)
-            : {},
-      coins: Number.isFinite(saved.coins) ? Number(saved.coins) : DEFAULTS.coins,
-      ledger: Array.isArray(saved.ledger) ? saved.ledger.slice(-LEDGER_SIZE) : [],
-      playerName: typeof saved.playerName === 'string' && saved.playerName ? saved.playerName : DEFAULTS.playerName,
-      owned: Array.isArray(saved.owned) ? saved.owned.filter((id) => typeof id === 'string') : [],
-      equipped: loadEquipped(saved.equipped),
-      trial:
-        saved.trial && Number.isFinite(saved.trial.day) && Number.isFinite(saved.trial.level)
-          ? { day: saved.trial.day, level: saved.trial.level, done: !!saved.trial.done }
-          : undefined,
-      bonusDay: Number.isFinite(saved.bonusDay) ? saved.bonusDay : undefined,
-    };
+    return fromSaved(JSON.parse(raw));
   } catch {
     return DEFAULTS;
   }
+}
+
+/** Builds valid progress from stored or downloaded data, dropping anything malformed. */
+function fromSaved(saved: Saved): Progress {
+  const unlocked = Math.max(1, Number(saved.unlocked) || 1);
+  return {
+    ...DEFAULTS,
+    unlocked,
+    current: Math.min(unlocked, Math.max(1, Number(saved.current) || 1)),
+    records:
+      saved.records && typeof saved.records === 'object'
+        ? saved.records
+        : saved.stars && typeof saved.stars === 'object'
+          ? migrateStars(saved.stars)
+          : {},
+    coins: Number.isFinite(saved.coins) ? Number(saved.coins) : DEFAULTS.coins,
+    ledger: Array.isArray(saved.ledger) ? saved.ledger.slice(-LEDGER_SIZE) : [],
+    playerName: typeof saved.playerName === 'string' && saved.playerName ? saved.playerName : DEFAULTS.playerName,
+    owned: Array.isArray(saved.owned) ? saved.owned.filter((id) => typeof id === 'string') : [],
+    equipped: loadEquipped(saved.equipped),
+    trial:
+      saved.trial && Number.isFinite(saved.trial.day) && Number.isFinite(saved.trial.level)
+        ? { day: saved.trial.day, level: saved.trial.level, done: !!saved.trial.done }
+        : undefined,
+    bonusDay: Number.isFinite(saved.bonusDay) ? saved.bonusDay : undefined,
+  };
 }
 
 function save(p: Progress) {
@@ -217,6 +223,29 @@ export function equipCosmetic(id: string) {
 /** Coins earned by watching a rewarded ad (called only after the ad reports the reward). */
 export function grantAdCoins(amount: number) {
   set(withCoins(state, amount, 'ad')!);
+}
+
+/** Progress as the server stores it (GET /me and sign-in responses). */
+export type CloudProgress = {
+  coins: number;
+  level: number;
+  data: Pick<Progress, 'records' | 'owned' | 'equipped' | 'trial' | 'bonusDay'>;
+};
+
+/**
+ * Replaces this device's progress with an account's cloud copy (after signing in on a new device
+ * or after clearing app data). Reloads the Play board.
+ */
+export function restoreProgress(cloud: CloudProgress | null, playerName: string) {
+  const next = cloud
+    ? fromSaved({ ...cloud.data, unlocked: cloud.level, current: cloud.level, coins: cloud.coins, playerName })
+    : { ...DEFAULTS, playerName };
+  set({ ...next, session: state.session + 1 });
+}
+
+/** Back to a brand-new player (after signing out or deleting the account). */
+export function resetProgress() {
+  set({ ...DEFAULTS, session: state.session + 1 });
 }
 
 /** Same rule the server enforces: 3-20 letters, numbers, spaces or underscores. */

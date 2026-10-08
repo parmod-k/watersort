@@ -6,6 +6,7 @@ import { haptic } from '../game/haptics';
 import { router, usePathname, type Href } from 'expo-router';
 import Panel from './ui/Panel';
 import IconButton from './ui/IconButton';
+import AccountSection from './AccountSection';
 import { artTextShadow, chassis, colors, fontFamily } from '../theme/tokens';
 import { setPlayerName, useProgress } from '../game/progress';
 import { updateSettings, useSettings, type Settings } from '../game/settings';
@@ -114,6 +115,8 @@ export default function SettingsMenu({ visible, onClose }: Props) {
                 <MaterialIcons name={sync.icon} size={16} color="#D8C7FF" />
                 <Text style={styles.syncText}>{sync.text}</Text>
               </View>
+
+              <AccountSection />
 
               <Text style={styles.section}>Go to</Text>
               {DESTINATIONS.map((d) => {

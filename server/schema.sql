@@ -2,12 +2,34 @@
 
 CREATE TABLE IF NOT EXISTS players (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  -- SHA-256 of the device's secret token; the token itself is never stored.
-  token_hash CHAR(64) NOT NULL UNIQUE,
   name VARCHAR(20) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per device signed in to a player. A guest has one; a linked account can have several.
+CREATE TABLE IF NOT EXISTS player_tokens (
+  -- SHA-256 of the device's secret token; the token itself is never stored.
+  token_hash CHAR(64) NOT NULL PRIMARY KEY,
+  player_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_tokens_player (player_id),
+  CONSTRAINT fk_tokens_player FOREIGN KEY (player_id) REFERENCES players (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Google / Apple identities linked to a player. This is what makes an account permanent: signing in
+-- with the same identity on any device (or after clearing app data) finds the same player.
+CREATE TABLE IF NOT EXISTS player_logins (
+  provider VARCHAR(16) NOT NULL,
+  -- The provider's stable user id (the ID token's "sub").
+  subject VARCHAR(255) NOT NULL,
+  player_id BIGINT UNSIGNED NOT NULL,
+  email VARCHAR(320) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (provider, subject),
+  UNIQUE KEY uniq_player_provider (player_id, provider),
+  CONSTRAINT fk_logins_player FOREIGN KEY (player_id) REFERENCES players (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS player_settings (
   player_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,

@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react';
-import { api, ApiError, loadAccount, saveAccount, type ServerBoard } from './api';
-import { cleanPlayerName, getProgress, subscribeProgress } from './progress';
-import { getSettings, subscribeSettings } from './settings';
+import { api, ApiError, loadAccount, saveAccount, type Provider, type ServerBoard } from './api';
+import { providerIdToken, signOutProviders } from './identity';
+import { cleanPlayerName, getProgress, resetProgress, restoreProgress, subscribeProgress } from './progress';
+import { getSettings, subscribeSettings, updateSettings } from './settings';
 import type { BoardKind } from './scoring';
 
 /**
@@ -45,7 +46,7 @@ async function account() {
   const saved = loadAccount();
   if (saved) return saved;
   const { token, player } = await api.register(cleanPlayerName(getProgress().playerName) ?? undefined);
-  const fresh = { id: player.id, token, name: player.name };
+  const fresh = { id: player.id, token, name: player.name, logins: [] };
   saveAccount(fresh);
   dirty.settings = dirty.progress = true;
   return fresh;
@@ -64,8 +65,8 @@ async function push() {
   }
   if (dirty.progress) {
     dirty.progress = false;
-    const { coins, unlocked, records, owned, equipped, ledger } = p;
-    await api.putProgress(acc.token, { coins, unlocked, records, owned, equipped, ledger });
+    const { coins, unlocked, records, owned, equipped, ledger, trial, bonusDay } = p;
+    await api.putProgress(acc.token, { coins, unlocked, records, owned, equipped, ledger, trial, bonusDay });
   }
 }
 
@@ -118,4 +119,79 @@ export async function fetchLeaderboard(kind: BoardKind): Promise<ServerBoard> {
   const acc = loadAccount();
   if (!acc || status !== 'synced') throw new Error('offline');
   return api.leaderboard(acc.token, kind);
+}
+
+// ---------------------------------------------------------------------------
+// Permanent accounts
+// ---------------------------------------------------------------------------
+
+type Summary = { level: number; coins: number };
+
+/**
+ * Asked when signing in to an account whose cloud progress is behind this device's: keep the cloud
+ * copy, or overwrite it with this device's progress.
+ */
+export type ChooseProgress = (device: Summary, cloud: Summary) => Promise<'cloud' | 'device'>;
+
+/**
+ * Signs in with Google or Apple. A guest's progress moves to the new login ("linked"); signing in
+ * to an account that already exists (new phone, cleared data) restores its cloud progress.
+ * Resolves "cancelled" if the player closed the sign-in sheet.
+ */
+export async function signInWith(provider: Provider, chooseProgress: ChooseProgress) {
+  const idToken = await providerIdToken(provider);
+  if (!idToken) return 'cancelled' as const;
+  await flush();
+  const res = await api.signIn(provider, idToken, loadAccount()?.token);
+  const acc = { id: res.player.id, token: res.token, name: res.player.name, logins: res.logins };
+
+  if (res.result === 'existing' && res.progress) {
+    const device = getProgress();
+    const choice =
+      device.unlocked > res.progress.level
+        ? await chooseProgress({ level: device.unlocked, coins: device.coins }, { level: res.progress.level, coins: res.progress.coins })
+        : 'cloud';
+    saveAccount(acc);
+    if (choice === 'cloud') {
+      restoreProgress(res.progress, res.player.name);
+      updateSettings(res.settings);
+    } else {
+      restoreProgress({ ...res.progress, ...cloudShape(device) }, res.player.name);
+    }
+  } else {
+    // A new login: this device's progress becomes the account's.
+    saveAccount(acc);
+  }
+  dirty.settings = dirty.progress = true;
+  await flush();
+  return res.result;
+}
+
+/** This device's progress in the shape restoreProgress takes, keeping the account's name. */
+function cloudShape(p: ReturnType<typeof getProgress>) {
+  const { records, owned, equipped, trial, bonusDay } = p;
+  return { coins: p.coins, level: p.unlocked, data: { records, owned, equipped, trial, bonusDay } };
+}
+
+/** Signs this device out of a linked account and starts over as a new guest. */
+export async function signOut() {
+  const acc = loadAccount();
+  if (!acc) return;
+  await api.logout(acc.token);
+  startOver();
+}
+
+/** Permanently deletes the account on the server, then starts over as a new guest. */
+export async function deleteAccount() {
+  const acc = loadAccount();
+  if (acc) await api.deleteAccount(acc.token);
+  startOver();
+}
+
+function startOver() {
+  signOutProviders();
+  saveAccount(null);
+  resetProgress();
+  dirty.settings = dirty.progress = true;
+  void flush();
 }
