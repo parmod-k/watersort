@@ -1,4 +1,5 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import { getSettings, subscribeSettings } from './settings';
 
 /** Short game sound effects. Players are created lazily and reused; every call fails silently. */
 const sources = {
@@ -29,7 +30,13 @@ function player(name: Sfx) {
   return players[name];
 }
 
+// Turning sound off silences anything already playing (e.g. a long pour).
+subscribeSettings(() => {
+  if (!getSettings().sound) (Object.keys(players) as Sfx[]).forEach((name) => stopSfx(name));
+});
+
 export function playSfx(name: Sfx, { volume = 1, rate = 1 }: Levels = {}) {
+  if (!getSettings().sound) return;
   try {
     clearInterval(ramps[name]);
     const p = player(name);

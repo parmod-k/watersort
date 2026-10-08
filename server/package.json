@@ -1,0 +1,18 @@
+{
+  "name": "watersort-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Player accounts, settings, progress sync and leaderboards for the Water Sort app.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/index.js",
+    "dev": "node --env-file-if-exists=.env --watch src/index.js",
+    "db:init": "node --env-file-if-exists=.env src/migrate.js",
+    "test": "node --env-file-if-exists=.env --test \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "mysql2": "^3.24.5"
+  }
+}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { haptic, ImpactFeedbackStyle, NotificationFeedbackType } from '../game/haptics';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -43,7 +43,7 @@ function PopStar({ size, earned, index }: { size: number; earned: boolean; index
       if (!earned) return;
       setLanded(true);
       playSfx('chime', { volume: 0.55, rate: 1 + index * 0.12 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+      haptic.impact(ImpactFeedbackStyle.Medium);
     }, delay + 120);
     return () => {
       anim.stop();
@@ -108,7 +108,7 @@ export default function LevelCompleteScreen() {
   const cheer = useRef(new Animated.Value(0)).current;
   const wobble = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    haptic.notify(NotificationFeedbackType.Success);
     Animated.spring(enter, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }).start();
     Animated.sequence([
       Animated.delay(180),

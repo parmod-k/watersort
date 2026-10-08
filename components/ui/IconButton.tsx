@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { haptic } from '../../game/haptics';
 import { artTextShadow, chassis, colors, fontFamily } from '../../theme/tokens';
 
 type Props = {
@@ -49,7 +49,7 @@ export default function IconButton({
         disabled={disabled}
         hitSlop={4}
         onPress={() => {
-          Haptics.selectionAsync().catch(() => {});
+          haptic.selection();
           onPress?.();
         }}
       >

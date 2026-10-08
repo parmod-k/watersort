@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
+import { haptic, ImpactFeedbackStyle, NotificationFeedbackType } from '../../game/haptics';
 import { router, useIsFocused } from 'expo-router';
 import GameHeader from '../../components/GameHeader';
 import Panel from '../../components/ui/Panel';
@@ -223,7 +223,7 @@ export default function PlayScreen() {
       easing: Easing.out(Easing.back(1.4)),
       useNativeDriver: true,
     }).start();
-    Haptics.selectionAsync().catch(() => {});
+    haptic.selection();
   }
 
   /** Stage-relative top-left of a tube at rest, or null if not laid out yet. */
@@ -361,7 +361,7 @@ export default function PlayScreen() {
       setStreamPos(stream);
       setPourFx({ sourceId, targetId, color: pouredColor, count });
       setSettleFx(null);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      haptic.impact(ImpactFeedbackStyle.Light);
 
       // 2. The stream falls from the lip; the source drains and tips further while the target fills.
       //    More segments take proportionally longer to pour.
@@ -389,7 +389,7 @@ export default function PlayScreen() {
           const fillsBottle = isTubeComplete([...tubes[targetId], ...Array(count).fill(pouredColor)]);
           if (fillsBottle) {
             playSfx('chime', { volume: 0.8 });
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            haptic.notify(NotificationFeedbackType.Success);
           } else {
             playSfx('plop', { volume: 0.6, rate: 0.95 + Math.random() * 0.15 });
           }
@@ -492,7 +492,7 @@ export default function PlayScreen() {
   /** Charges for one booster use (free within the level's allowance). False if it can't be afforded. */
   function chargeBooster(kind: Booster) {
     if (!payForBooster(kind, boostersUsed[kind])) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      haptic.notify(NotificationFeedbackType.Error);
       showNotice(`Need ${boosterPrice(kind, boostersUsed[kind])} coins`, adReady);
       return false;
     }

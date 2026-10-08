@@ -7,7 +7,8 @@ import Panel from '../../components/ui/Panel';
 import Pill from '../../components/ui/Pill';
 import { artTextShadow, chassis, colors, fontFamily, radii, spacing } from '../../theme/tokens';
 import { useProgress } from '../../game/progress';
-import { BoardEntry, BoardKind, buildBoard, leagueFor, PlayerStats, statsFor } from '../../game/scoring';
+import { BoardEntry, BoardKind, leagueFor, PlayerStats, statsFor } from '../../game/scoring';
+import { useBoardView } from '../../game/leaderboard';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 
 const segments: { kind: BoardKind; label: string }[] = [
@@ -113,22 +114,20 @@ export default function RankScreen() {
     () => ({ name: progress.playerName, level: stats.level, stars: stats.stars, score: stats.score }),
     [progress.playerName, stats.level, stats.stars, stats.score],
   );
-  const board = useMemo(() => buildBoard(me, kind), [me, kind]);
-  const myIndex = board.findIndex((e) => e.isMe);
-  const myEntry = board[myIndex];
-  const scoreBoard = useMemo(() => buildBoard(me, 'score'), [me]);
-  const myScoreRank = scoreBoard.find((e) => e.isMe)!.rank;
-  const topPct = Math.max(1, Math.round((myScoreRank / scoreBoard.length) * 100));
+  const board = useBoardView(me, kind);
+  const myEntry = board.me;
+  const scoreBoard = useBoardView(me, 'score');
+  const topPct = Math.max(1, Math.round((scoreBoard.me.rank / scoreBoard.total) * 100));
   const avgScore = stats.cleared > 0 ? Math.round(stats.score / stats.cleared) : 0;
   const leagueTint = LEAGUE_TINTS[league.name] ?? colors.lagoon;
   const medalsEarned = MEDALS.filter((m) => m.value(stats) >= m.goal).length;
 
   // Near the top: the top rows. Further down: the podium, a gap, then the player and their neighbours.
-  const rows: (BoardEntry | null)[] =
-    myIndex < SHOWN ? board.slice(0, SHOWN) : [...board.slice(0, 3), null, ...board.slice(myIndex - 1, myIndex + 2)];
+  const nearTop = board.top.some((e) => e.isMe);
+  const rows: (BoardEntry | null)[] = nearTop ? board.top.slice(0, SHOWN) : [...board.top.slice(0, 3), null, ...board.around];
 
   // The nearest rival ranked above the player on this board.
-  const ahead = board.filter((e) => !e.isMe && e.rank < myEntry.rank).pop();
+  const ahead = (nearTop ? board.top : board.around).filter((e) => !e.isMe && e.rank < myEntry.rank).pop();
   let chase = 'You lead this board!';
   if (ahead) {
     if (kind === 'level') chase = `Reach level ${ahead.level + 1} to pass ${ahead.name}`;
@@ -215,7 +214,9 @@ export default function RankScreen() {
           <Text style={styles.standingsTitle}>{BOARD_TITLES[kind]}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <MaterialIcons name="info-outline" size={13} color={colors.onArtGold} style={artTextShadow} />
-            <Text style={styles.standingsMeta}>Sample rivals · offline</Text>
+            <Text style={styles.standingsMeta}>
+              {board.online ? `Live · ${board.total.toLocaleString()} players` : 'Sample rivals · offline'}
+            </Text>
           </View>
         </View>
 
@@ -230,7 +231,7 @@ export default function RankScreen() {
           const medal = p.rank <= 3 ? PODIUM[p.rank - 1] : undefined;
           return (
             <Panel
-              key={p.name}
+              key={`${idx}-${p.name}`}
               variant={p.isMe ? 'highlight' : 'cream'}
               style={styles.playerRow}
               radius={20}
@@ -245,7 +246,7 @@ export default function RankScreen() {
                   <Text style={styles.rankNum}>{p.rank}</Text>
                 </View>
               )}
-              <View style={[styles.playerAvatar, { backgroundColor: AVATAR_TINTS[board.indexOf(p) % AVATAR_TINTS.length] }]}>
+              <View style={[styles.playerAvatar, { backgroundColor: AVATAR_TINTS[(p.rank - 1) % AVATAR_TINTS.length] }]}>
                 <Text style={styles.playerInitial}>{p.name.charAt(0)}</Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -273,7 +274,7 @@ export default function RankScreen() {
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.meValue}>{formatValue(kind, me)}</Text>
-            <Text style={styles.meOf}>of {board.length} players</Text>
+            <Text style={styles.meOf}>of {board.total.toLocaleString()} players</Text>
           </View>
         </Panel>
 

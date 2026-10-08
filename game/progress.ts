@@ -111,9 +111,14 @@ function set(next: Progress) {
   listeners.forEach((l) => l());
 }
 
-function subscribe(listener: () => void) {
+export function subscribeProgress(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Current progress, for code outside React (cloud sync). */
+export function getProgress() {
+  return state;
 }
 
 /**
@@ -128,7 +133,7 @@ function withCoins(p: Progress, amount: number, reason: CoinReason): Progress | 
 }
 
 export function useProgress() {
-  return useSyncExternalStore(subscribe, () => state, () => state);
+  return useSyncExternalStore(subscribeProgress, getProgress, getProgress);
 }
 
 export function playLevel(level: number) {
@@ -212,6 +217,20 @@ export function equipCosmetic(id: string) {
 /** Coins earned by watching a rewarded ad (called only after the ad reports the reward). */
 export function grantAdCoins(amount: number) {
   set(withCoins(state, amount, 'ad')!);
+}
+
+/** Same rule the server enforces: 3-20 letters, numbers, spaces or underscores. */
+export function cleanPlayerName(name: string) {
+  const clean = name.trim().replace(/\s+/g, ' ');
+  return /^[A-Za-z0-9_ ]{3,20}$/.test(clean) ? clean : null;
+}
+
+/** Renames the player. Returns false if the name breaks the rule above. */
+export function setPlayerName(name: string) {
+  const clean = cleanPlayerName(name);
+  if (!clean) return false;
+  if (clean !== state.playerName) set({ ...state, playerName: clean });
+  return true;
 }
 
 /** Free coins once per day. Returns false if already claimed today. */

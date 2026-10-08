@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import { haptic, ImpactFeedbackStyle } from '../../game/haptics';
 import { MaterialIcons } from '@expo/vector-icons';
 import { chassis, colors, fontFamily } from '../../theme/tokens';
 
@@ -49,7 +49,7 @@ export default function GradientButton({
     <Pressable
       disabled={disabled}
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        haptic.impact(ImpactFeedbackStyle.Medium);
         onPress?.();
       }}
       style={[fullWidth ? { width: '100%' as const } : undefined, disabled && { opacity: 0.6 }, style]}

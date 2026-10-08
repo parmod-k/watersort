@@ -9,6 +9,24 @@ npm install
 npm start
 ```
 
+## Backend (accounts, settings, leaderboards)
+
+The `server/` folder is a Node.js + MySQL API. The app works offline without it; when it can reach
+the API it syncs the player's name, settings, progress and coin history, and the Rank tab shows the
+live leaderboard instead of sample rivals.
+
+```powershell
+cd server
+copy .env.example .env   # defaults match XAMPP's MySQL (root, no password)
+npm install
+npm run db:init          # creates the "watersort" database and tables
+npm start                # http://localhost:4000
+npm test                 # API tests against a separate watersort_test database
+```
+
+In development the app finds the API on port 4000 of the machine running `npm start` (phones must be
+on the same Wi-Fi). For a release build set `EXPO_PUBLIC_API_URL` (e.g. `https://api.example.com`).
+
 ## Build an Android APK for testing (local)
 
 ### Prerequisites
