@@ -15,7 +15,6 @@ import {
 import { View } from 'react-native';
 import { colors } from '../theme/tokens';
 import { initAds } from '../game/ads';
-import { startSync } from '../game/sync';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -28,7 +27,6 @@ export default function RootLayout() {
   // Consent form (where required), then preload ads so the first rewarded ad is ready when offered.
   useEffect(() => {
     initAds();
-    startSync();
   }, []);
 
   if (!fontsLoaded) {

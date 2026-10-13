@@ -215,7 +215,7 @@ export default function RankScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <MaterialIcons name="info-outline" size={13} color={colors.onArtGold} style={artTextShadow} />
             <Text style={styles.standingsMeta}>
-              {board.online ? `Live · ${board.total.toLocaleString()} players` : 'Sample rivals · offline'}
+              Sample rivals
             </Text>
           </View>
         </View>

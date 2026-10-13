@@ -122,7 +122,7 @@ export function subscribeProgress(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-/** Current progress, for code outside React (cloud sync). */
+/** Current progress, for code outside React. */
 export function getProgress() {
   return state;
 }
@@ -225,30 +225,7 @@ export function grantAdCoins(amount: number) {
   set(withCoins(state, amount, 'ad')!);
 }
 
-/** Progress as the server stores it (GET /me and sign-in responses). */
-export type CloudProgress = {
-  coins: number;
-  level: number;
-  data: Pick<Progress, 'records' | 'owned' | 'equipped' | 'trial' | 'bonusDay'>;
-};
-
-/**
- * Replaces this device's progress with an account's cloud copy (after signing in on a new device
- * or after clearing app data). Reloads the Play board.
- */
-export function restoreProgress(cloud: CloudProgress | null, playerName: string) {
-  const next = cloud
-    ? fromSaved({ ...cloud.data, unlocked: cloud.level, current: cloud.level, coins: cloud.coins, playerName })
-    : { ...DEFAULTS, playerName };
-  set({ ...next, session: state.session + 1 });
-}
-
-/** Back to a brand-new player (after signing out or deleting the account). */
-export function resetProgress() {
-  set({ ...DEFAULTS, session: state.session + 1 });
-}
-
-/** Same rule the server enforces: 3-20 letters, numbers, spaces or underscores. */
+/** Player name rule: 3-20 letters, numbers, spaces or underscores. */
 export function cleanPlayerName(name: string) {
   const clean = name.trim().replace(/\s+/g, ' ');
   return /^[A-Za-z0-9_ ]{3,20}$/.test(clean) ? clean : null;

@@ -6,11 +6,9 @@ import { haptic } from '../game/haptics';
 import { router, usePathname, type Href } from 'expo-router';
 import Panel from './ui/Panel';
 import IconButton from './ui/IconButton';
-import AccountSection from './AccountSection';
 import { artTextShadow, chassis, colors, fontFamily } from '../theme/tokens';
 import { setPlayerName, useProgress } from '../game/progress';
 import { updateSettings, useSettings, type Settings } from '../game/settings';
-import { useSyncStatus, type SyncStatus } from '../game/sync';
 
 type Props = {
   visible: boolean;
@@ -29,19 +27,11 @@ const TOGGLES: { key: keyof Settings; label: string; icon: keyof typeof Material
   { key: 'haptics', label: 'Vibration', icon: 'vibration' },
 ];
 
-const SYNC_LABELS: Record<SyncStatus, { text: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
-  idle: { text: 'Connecting…', icon: 'cloud-queue' },
-  syncing: { text: 'Saving to cloud…', icon: 'cloud-upload' },
-  synced: { text: 'Saved to cloud', icon: 'cloud-done' },
-  offline: { text: 'Offline · saved on this device', icon: 'cloud-off' },
-};
-
 /** Player name, preferences and screen navigation, opened from the header squircle. */
 export default function SettingsMenu({ visible, onClose }: Props) {
   const pathname = usePathname();
   const settings = useSettings();
   const { playerName } = useProgress();
-  const sync = SYNC_LABELS[useSyncStatus()];
   const [nameDraft, setNameDraft] = useState(playerName);
   const [nameError, setNameError] = useState(false);
   useEffect(() => {
@@ -111,12 +101,6 @@ export default function SettingsMenu({ visible, onClose }: Props) {
                   />
                 </View>
               ))}
-              <View style={styles.syncRow}>
-                <MaterialIcons name={sync.icon} size={16} color="#D8C7FF" />
-                <Text style={styles.syncText}>{sync.text}</Text>
-              </View>
-
-              <AccountSection />
 
               <Text style={styles.section}>Go to</Text>
               {DESTINATIONS.map((d) => {
@@ -203,8 +187,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.25)',
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  syncRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 },
-  syncText: { color: '#D8C7FF', fontFamily: fontFamily.semiBold, fontSize: 12 },
   rowLabel: { flex: 1, color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 17, ...artTextShadow },
   rowLabelActive: { color: colors.purpleInk, textShadowColor: 'transparent' },
 });
