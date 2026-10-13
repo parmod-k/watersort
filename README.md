@@ -186,3 +186,17 @@ installed from Play (internal testing track) or signed with the same key, for re
 - **"SDK location not found":** create `android\local.properties` containing
   `sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk`
 - **Lock or "another process" errors:** run `.\gradlew.bat --stop` in `android\`, then try again.
+
+
+
+1. Complete the instructions in the Google Mobile Ads SDK guide using this app ID: ca-app-pub-2482030283049144~3906646830
+
+2. Follow the rewarded implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/5747921124
+
+3. Follow the interstitial implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/7388305859
+
+4. Follow the banner implementation guide to integrate the SDK. You'll specify ad type, size and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/6744563167
+
+5. Follow the rewarded interstitial implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/5554595413
+
+6. Follow the app open implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/9302268733
