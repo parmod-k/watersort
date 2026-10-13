@@ -20,6 +20,8 @@ const DESTINATIONS: { href: Href; path: string; label: string; icon: keyof typeo
   { href: '/stages', path: '/stages', label: 'Stages', icon: 'map' },
   { href: '/themes', path: '/themes', label: 'Themes', icon: 'palette' },
   { href: '/rank', path: '/rank', label: 'Rank', icon: 'emoji-events' },
+  { href: '/shop', path: '/shop', label: 'Shop', icon: 'storefront' },
+  { href: '/profile', path: '/profile', label: 'Profile', icon: 'account-circle' },
 ];
 
 const TOGGLES: { key: keyof Settings; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [

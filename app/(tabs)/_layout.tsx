@@ -24,6 +24,8 @@ export default function TabsLayout() {
           <Tabs.Screen name="stages" />
           <Tabs.Screen name="themes" />
           <Tabs.Screen name="rank" />
+          <Tabs.Screen name="shop" />
+          <Tabs.Screen name="profile" />
         </Tabs>
       </View>
     </ScreenBackground>

@@ -48,9 +48,10 @@ export function levelReward(stars: number, bestStars?: number) {
   return ECONOMY.replayReward;
 }
 
-export type CoinReason = 'level' | 'trial' | 'daily' | 'shop' | 'ad' | Booster;
+export type CoinReason = 'level' | 'trial' | 'daily' | 'shop' | 'ad' | 'purchase' | 'vip' | Booster;
 
-export type LedgerEntry = { at: number; amount: number; reason: CoinReason };
+/** One coin change. `ref` ties a purchase payout to its store transaction. */
+export type LedgerEntry = { at: number; amount: number; reason: CoinReason; ref?: string };
 
-/** How many recent coin changes are kept for debugging balance complaints. */
-export const LEDGER_SIZE = 50;
+/** How many recent coin changes are kept (shown in the profile's coin history). */
+export const LEDGER_SIZE = 200;

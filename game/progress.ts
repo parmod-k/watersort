@@ -1,9 +1,25 @@
 import 'expo-sqlite/localStorage/install';
 import { useSyncExternalStore } from 'react';
+import { randomUUID } from 'expo-crypto';
 import { bestRecord, LevelRecord, LevelResult, recordFor } from './scoring';
 import { cosmetic, CosmeticSlot, DEFAULT_EQUIPPED, Equipped, isOwned } from './cosmetics';
 import { DAILY_BONUS, pickTrialLevel, today, TRIAL_REWARD } from './daily';
-import { Booster, boosterPrice, CoinReason, ECONOMY, LEDGER_SIZE, LedgerEntry, levelReward } from './economy';
+import { Booster, boosterPrice, ECONOMY, LEDGER_SIZE, LedgerEntry, levelReward } from './economy';
+import { VIP } from './shop';
+import {
+  CoinTotals,
+  deliverPurchase,
+  Entitlements,
+  NO_ENTITLEMENTS,
+  PURCHASES_SIZE,
+  PurchaseRecord,
+  recordPending,
+  subscriptionActive,
+  totalsFromLedger,
+  withCoins,
+} from './wallet';
+import { packSnapshot, unpackSnapshot } from './snapshot';
+import { loadBackup, saveBackup } from './backup';
 
 export type Progress = {
   /** Level currently loaded on the Play tab. */
@@ -15,8 +31,14 @@ export type Progress = {
   /** Best result per completed level (stars, score, moves, time, power-ups used). */
   records: Record<number, LevelRecord>;
   coins: number;
+  /** All coins ever earned and spent by this player. */
+  totals: CoinTotals;
   /** Most recent coin changes, newest last (see LEDGER_SIZE). */
   ledger: LedgerEntry[];
+  /** Random ID made on first launch: the guest player's identity, no sign-up needed. */
+  playerId: string;
+  /** When this player was first created. */
+  createdAt: number;
   playerName: string;
   /** Cosmetics bought with coins (level- and star-gated items unlock without being listed here). */
   owned: string[];
@@ -25,6 +47,12 @@ export type Progress = {
   trial?: { day: number; level: number; done: boolean };
   /** Day the free coin bonus was last claimed. */
   bonusDay?: number;
+  /** Store purchases made by this player, newest last. */
+  purchases: PurchaseRecord[];
+  /** Remove Ads / VIP as last confirmed by the App Store or Google Play. */
+  entitlements: Entitlements;
+  /** Day the VIP coin gift was last claimed. */
+  vipDay?: number;
 };
 
 const STORAGE_KEY = 'watersort.progress.v1';
@@ -34,10 +62,15 @@ const DEFAULTS: Progress = {
   unlocked: 1,
   records: {},
   coins: ECONOMY.startingCoins,
+  totals: { earned: 0, spent: 0 },
   ledger: [],
+  playerId: '',
+  createdAt: 0,
   playerName: 'FluidMaster_99',
   owned: [],
   equipped: DEFAULT_EQUIPPED,
+  purchases: [],
+  entitlements: NO_ENTITLEMENTS,
 };
 
 function loadEquipped(saved: unknown): Equipped {
@@ -62,19 +95,41 @@ function migrateStars(stars: Record<number, number>): Record<number, LevelRecord
 
 type Saved = Partial<Progress> & { stars?: Record<number, number> };
 
-/** Reads saved progress (SQLite-backed localStorage on native, browser localStorage on web). */
+/**
+ * Reads saved progress (SQLite-backed localStorage on native, browser localStorage on web). With
+ * none saved (first launch, or reinstalled) it falls back to the off-device backup, then a new player.
+ */
 function load(): Progress {
   try {
     const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULTS;
-    return fromSaved(JSON.parse(raw));
-  } catch {
-    return DEFAULTS;
-  }
+    if (raw) return fromSaved(JSON.parse(raw));
+  } catch {}
+  return fromSaved((unpackSnapshot(loadBackup()) as Saved | null) ?? {});
 }
 
-/** Builds valid progress from stored or downloaded data, dropping anything malformed. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isPurchaseRecord(r: unknown): r is PurchaseRecord {
+  const p = r as PurchaseRecord;
+  return !!p && typeof p.key === 'string' && typeof p.productId === 'string' && Number.isFinite(p.coins);
+}
+
+function loadEntitlements(saved: Partial<Entitlements> | undefined): Entitlements {
+  if (!saved || typeof saved !== 'object') return NO_ENTITLEMENTS;
+  const s = saved.subscription;
+  return {
+    removeAds: saved.removeAds === true,
+    subscription:
+      s && typeof s.productId === 'string'
+        ? { productId: s.productId, active: !!s.active, willRenew: s.willRenew ?? null, expiresAt: Number.isFinite(s.expiresAt) ? s.expiresAt : null }
+        : null,
+    checkedAt: Number.isFinite(saved.checkedAt) ? saved.checkedAt! : null,
+  };
+}
+
+/** Builds valid progress from stored or backed-up data, dropping anything malformed. */
 function fromSaved(saved: Saved): Progress {
+  const ledger = Array.isArray(saved.ledger) ? saved.ledger.slice(-LEDGER_SIZE) : [];
   const unlocked = Math.max(1, Number(saved.unlocked) || 1);
   return {
     ...DEFAULTS,
@@ -86,8 +141,14 @@ function fromSaved(saved: Saved): Progress {
         : saved.stars && typeof saved.stars === 'object'
           ? migrateStars(saved.stars)
           : {},
-    coins: Number.isFinite(saved.coins) ? Number(saved.coins) : DEFAULTS.coins,
-    ledger: Array.isArray(saved.ledger) ? saved.ledger.slice(-LEDGER_SIZE) : [],
+    coins: Number.isFinite(saved.coins) ? Math.max(0, Math.trunc(Number(saved.coins))) : DEFAULTS.coins,
+    totals:
+      saved.totals && Number.isFinite(saved.totals.earned) && Number.isFinite(saved.totals.spent)
+        ? { earned: saved.totals.earned, spent: saved.totals.spent }
+        : totalsFromLedger(ledger),
+    ledger,
+    playerId: typeof saved.playerId === 'string' && UUID.test(saved.playerId) ? saved.playerId : randomUUID(),
+    createdAt: Number.isFinite(saved.createdAt) ? saved.createdAt! : Date.now(),
     playerName: typeof saved.playerName === 'string' && saved.playerName ? saved.playerName : DEFAULTS.playerName,
     owned: Array.isArray(saved.owned) ? saved.owned.filter((id) => typeof id === 'string') : [],
     equipped: loadEquipped(saved.equipped),
@@ -96,6 +157,9 @@ function fromSaved(saved: Saved): Progress {
         ? { day: saved.trial.day, level: saved.trial.level, done: !!saved.trial.done }
         : undefined,
     bonusDay: Number.isFinite(saved.bonusDay) ? saved.bonusDay : undefined,
+    purchases: Array.isArray(saved.purchases) ? saved.purchases.filter(isPurchaseRecord).slice(-PURCHASES_SIZE) : [],
+    entitlements: loadEntitlements(saved.entitlements),
+    vipDay: Number.isFinite(saved.vipDay) ? saved.vipDay : undefined,
   };
 }
 
@@ -106,9 +170,14 @@ function save(p: Progress) {
   } catch {
     // Storage unavailable (e.g. private browsing); progress just won't survive a restart.
   }
+  try {
+    saveBackup(JSON.stringify(packSnapshot(p)));
+  } catch {}
 }
 
 let state: Progress = load();
+// Persist straight away so a newly made player ID (or progress restored from backup) sticks.
+save(state);
 const listeners = new Set<() => void>();
 
 function set(next: Progress) {
@@ -125,17 +194,6 @@ export function subscribeProgress(listener: () => void) {
 /** Current progress, for code outside React. */
 export function getProgress() {
   return state;
-}
-
-/**
- * Every coin change goes through here so the ledger stays complete. Returns null when a spend
- * (negative amount) can't be afforded; callers must not proceed in that case.
- */
-function withCoins(p: Progress, amount: number, reason: CoinReason): Progress | null {
-  if (amount === 0) return p;
-  if (p.coins + amount < 0) return null;
-  const entry: LedgerEntry = { at: Date.now(), amount, reason };
-  return { ...p, coins: p.coins + amount, ledger: [...p.ledger, entry].slice(-LEDGER_SIZE) };
 }
 
 export function useProgress() {
@@ -236,6 +294,34 @@ export function setPlayerName(name: string) {
   const clean = cleanPlayerName(name);
   if (!clean) return false;
   if (clean !== state.playerName) set({ ...state, playerName: clean });
+  return true;
+}
+
+/** Remove Ads / VIP as last confirmed by the store (billing.native.ts keeps it current). */
+export function setEntitlements(entitlements: Entitlements) {
+  set({ ...state, entitlements });
+}
+
+/**
+ * Pays out a completed store purchase exactly once (see deliverPurchase). Returns true if this
+ * call delivered it, false if it had already been delivered.
+ */
+export function applyPurchase(record: PurchaseRecord) {
+  const { next, delivered } = deliverPurchase(state, record);
+  if (next !== state) set(next);
+  return delivered;
+}
+
+/** Records a purchase that is waiting for payment (nothing is paid until it completes). */
+export function notePendingPurchase(record: PurchaseRecord) {
+  const next = recordPending(state, record);
+  if (next !== state) set(next);
+}
+
+/** VIP's daily coin gift. Returns false if VIP isn't active or it was already claimed today. */
+export function claimVipCoins(day = today()) {
+  if (!subscriptionActive(state.entitlements) || state.vipDay === day) return false;
+  set({ ...withCoins(state, VIP.dailyCoins, 'vip')!, vipDay: day });
   return true;
 }
 

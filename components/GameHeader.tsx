@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import Pill from './ui/Pill';
@@ -48,15 +49,17 @@ export default function GameHeader(props: Props) {
         </View>
         <View style={styles.right}>
           {props.accessory}
-          <Pill variant="gold" style={styles.coinPill}>
-            <MaterialIcons name="monetization-on" size={18} color={colors.goldRim} />
-            <Text style={styles.coinText} numberOfLines={1}>
-              {coins.toLocaleString()}
-            </Text>
-            <View style={styles.plus}>
-              <MaterialIcons name="add" size={14} color="#FFFFFF" />
-            </View>
-          </Pill>
+          <Pressable onPress={() => router.navigate('/shop')} accessibilityRole="button" accessibilityLabel={`${coins} coins, open shop`}>
+            <Pill variant="gold" style={styles.coinPill}>
+              <MaterialIcons name="monetization-on" size={18} color={colors.goldRim} />
+              <Text style={styles.coinText} numberOfLines={1}>
+                {coins.toLocaleString()}
+              </Text>
+              <View style={styles.plus}>
+                <MaterialIcons name="add" size={14} color="#FFFFFF" />
+              </View>
+            </Pill>
+          </Pressable>
         </View>
       </View>
       <SettingsMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />

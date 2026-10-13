@@ -15,6 +15,7 @@ import {
 import { View } from 'react-native';
 import { colors } from '../theme/tokens';
 import { initAds } from '../game/ads';
+import { initBilling } from '../game/billing';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -27,6 +28,8 @@ export default function RootLayout() {
   // Consent form (where required), then preload ads so the first rewarded ad is ready when offered.
   useEffect(() => {
     initAds();
+    // Store connection: prices, plus delivering purchases left unfinished by an earlier session.
+    initBilling();
   }, []);
 
   if (!fontsLoaded) {

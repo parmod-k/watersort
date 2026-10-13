@@ -9,6 +9,8 @@ import mobileAds, {
   TestIds,
 } from 'react-native-google-mobile-ads';
 import { ADS } from './economy';
+import { getProgress } from './progress';
+import { isAdFree } from './wallet';
 
 /**
  * Production ad unit IDs from the AdMob console. Debug builds always use Google's test units:
@@ -44,8 +46,15 @@ function loadRewarded() {
   rewarded.load();
 }
 
+/** Remove Ads and VIP turn off interstitials only; rewarded ads stay, since players choose them for coins. */
+function adFree() {
+  return isAdFree(getProgress().entitlements);
+}
+
 function loadInterstitial() {
   interstitial?.destroy();
+  interstitial = null;
+  if (adFree()) return;
   interstitial = InterstitialAd.createForAdRequest(UNITS.interstitial);
   interstitial.addAdEventListener(AdEventType.ERROR, () => setTimeout(loadInterstitial, 60_000));
   interstitial.load();
@@ -110,6 +119,9 @@ export function showRewarded(): Promise<boolean> {
  * ADS.interstitialEvery levels. Resolves when the ad closes (or straight away if none is shown).
  */
 export function maybeShowInterstitial(clearedLevel: number): Promise<void> {
+  if (adFree()) return Promise.resolve();
+  // Ad-free just ended (e.g. VIP expired): start loading interstitials again for next time.
+  if (!interstitial && canRequestAds) loadInterstitial();
   const ad = interstitial;
   const due = clearedLevel >= ADS.interstitialFromLevel && clearedLevel % ADS.interstitialEvery === 0;
   if (!ad || !ad.loaded || !due) return Promise.resolve();
