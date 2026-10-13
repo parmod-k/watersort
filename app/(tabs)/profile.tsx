@@ -69,7 +69,7 @@ export default function ProfileScreen() {
   const shownCoins = showAllCoins ? coinRows : coinRows.slice(0, SHORT_HISTORY);
   const purchases = [...progress.purchases].reverse();
 
-  const adStatus = entitlements.removeAds ? 'Remove Ads owned' : vip ? 'VIP active' : 'Ads between levels';
+  const adStatus = entitlements.removeAds ? 'Remove Ads owned' : vip ? 'VIP active' : 'Ads on';
   const store = Platform.OS === 'ios' ? 'Apple ID' : 'Google account';
   const backupText =
     Platform.OS === 'android'

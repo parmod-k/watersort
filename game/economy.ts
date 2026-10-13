@@ -12,6 +12,8 @@ export const ECONOMY = {
   dailyBonus: 50,
   /** Watching a rewarded ad when short of coins for a booster. */
   adReward: 100,
+  /** Bonus-gift ad offered between levels (rewarded interstitial). */
+  bonusAdReward: 75,
 };
 
 /** How often ads appear. Rewarded ads are always the player's choice; these limit the forced ones. */
@@ -20,7 +22,27 @@ export const ADS = {
   interstitialFromLevel: 6,
   /** Then one interstitial every this many cleared levels. */
   interstitialEvery: 3,
+  /** Bonus-gift offer (rewarded interstitial with a skippable intro) from this level... */
+  bonusFromLevel: 10,
+  /** ...every this many levels, on levels where no interstitial is due. */
+  bonusEvery: 5,
+  /** App-open ad when returning to the game after at least this long away... */
+  appOpenAfterAwayMs: 30_000,
+  /** ...and at most this often. */
+  appOpenMinGapMs: 4 * 60_000,
+  /** Banners show on these menu screens only, never on the board or next to Shop purchase buttons. */
+  bannerScreens: ['/stages', '/themes', '/rank', '/profile'],
 };
+
+/** True when a cleared level gets an interstitial (see ADS). */
+export function interstitialDue(level: number) {
+  return level >= ADS.interstitialFromLevel && level % ADS.interstitialEvery === 0;
+}
+
+/** True when a cleared level offers the bonus-gift ad instead (never on an interstitial level). */
+export function bonusAdDue(level: number) {
+  return level >= ADS.bonusFromLevel && level % ADS.bonusEvery === 0 && !interstitialDue(level);
+}
 
 export type Booster = 'undo' | 'hint' | 'restart' | 'extraBottle';
 

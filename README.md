@@ -68,7 +68,7 @@ installed from Play (internal testing track) or signed with the same key, for re
   is used. A Play subscription counts as active for up to 7 days without a store check.
 - **Restore Purchases** (Shop) brings back Remove Ads and an active VIP from the store account, and
   delivers any coin pack that was paid for but never delivered.
-- Ad-free status only skips interstitials (`maybeShowInterstitial`). AdMob consent and rewarded ads are unchanged.
+- Ad-free (Remove Ads or VIP) turns off banners, interstitials, app-open ads and the bonus-gift offer. Rewarded ads stay because players choose them. See the ads section below.
 
 ### Limitations (no backend)
 
@@ -187,16 +187,22 @@ installed from Play (internal testing track) or signed with the same key, for re
   `sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk`
 - **Lock or "another process" errors:** run `.\gradlew.bat --stop` in `android\`, then try again.
 
+## Ads (AdMob)
 
+The code is in `game/ads.native.ts` (ad unit IDs, frequency, ad-free checks) and `components/AdBanner.native.tsx`.
+Frequency settings are under `ADS` in `game/economy.ts`. Debug builds always use Google's test ads.
+Release builds use the IDs below.
 
-1. Complete the instructions in the Google Mobile Ads SDK guide using this app ID: ca-app-pub-2482030283049144~3906646830
+AdMob app ID (Android, in `app.json`): `ca-app-pub-2482030283049144~3906646830`
 
-2. Follow the rewarded implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/5747921124
+| Format | Android ad unit ID | Where and when |
+| --- | --- | --- |
+| Rewarded | `ca-app-pub-2482030283049144/5747921124` | Player's choice: double level coins, or coins when short for a booster |
+| Interstitial | `ca-app-pub-2482030283049144/7388305859` | After "Next Level" every 3rd level, from level 6 |
+| Banner (anchored adaptive) | `ca-app-pub-2482030283049144/6744563167` | Bottom of Stages, Themes, Rank and Profile. Never on the Play board or in the Shop |
+| Rewarded interstitial | `ca-app-pub-2482030283049144/5554595413` | "Bonus gift" (+75 coins) every 5th level from level 10, on levels without an interstitial. A 5-second intro with "No thanks" comes first, as AdMob requires |
+| App open | `ca-app-pub-2482030283049144/9302268733` | When returning to the game after 30 s or more away, at most every 4 minutes, from level 6. Never after a purchase, Restore or Manage subscription |
 
-3. Follow the interstitial implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/7388305859
-
-4. Follow the banner implementation guide to integrate the SDK. You'll specify ad type, size and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/6744563167
-
-5. Follow the rewarded interstitial implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/5554595413
-
-6. Follow the app open implementation guide to integrate the SDK. You'll specify ad type and placement when you integrate the code using this ad unit ID: ca-app-pub-2482030283049144/9302268733
+Remove Ads / VIP turn off everything except rewarded ads. The iOS unit IDs are still placeholders
+(`ca-app-pub-XXXXXXXXXXXXXXXX/IOS_…` in `game/ads.native.ts`, and Google's test `iosAppId` in `app.json`),
+so iOS release builds show no ads until an iOS app is added in AdMob.

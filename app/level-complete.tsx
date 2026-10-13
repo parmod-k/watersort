@@ -13,7 +13,8 @@ import GradientButton from '../components/ui/GradientButton';
 import IconButton from '../components/ui/IconButton';
 import { artTextShadow, colors, fontFamily, liquidOrder, spacing, titleTextShadow } from '../theme/tokens';
 import { grantAdCoins, playLevel } from '../game/progress';
-import { maybeShowInterstitial, showRewarded, useRewardedReady } from '../game/ads';
+import { bonusAdReady, maybeShowInterstitial, showBonusAd, showRewarded, useRewardedReady } from '../game/ads';
+import { bonusAdDue, ECONOMY } from '../game/economy';
 import { SCORE_MAX } from '../game/scoring';
 import { playSfx } from '../game/sfx';
 import { useResponsive } from '../theme/responsive';
@@ -136,10 +137,53 @@ export default function LevelCompleteScreen() {
     else setDoubled(false);
   }
 
+  // Bonus-gift ad (rewarded interstitial): AdMob requires an intro that says what it pays and
+  // lets the player skip before it starts. Seconds left on the intro, or null when not offered.
+  const [bonusCountdown, setBonusCountdown] = useState<number | null>(null);
+  const pendingLevel = useRef(level + 1);
+
+  useEffect(() => {
+    if (bonusCountdown === null) return;
+    if (bonusCountdown === 0) {
+      void watchBonus();
+      return;
+    }
+    const t = setTimeout(() => setBonusCountdown((s) => (s === null ? null : s - 1)), 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bonusCountdown]);
+
   async function goTo(next: number) {
     if (leaving) return;
     setLeaving(true);
+    if (bonusAdDue(level) && bonusAdReady()) {
+      pendingLevel.current = next;
+      setBonusCountdown(BONUS_INTRO_SECONDS);
+      return;
+    }
     await maybeShowInterstitial(level);
+    leave(next);
+  }
+
+  const bonusHandled = useRef(false);
+
+  async function watchBonus() {
+    // The button and the countdown reaching 0 can both fire; act on the first only.
+    if (bonusHandled.current) return;
+    bonusHandled.current = true;
+    setBonusCountdown(null);
+    if (await showBonusAd()) grantAdCoins(ECONOMY.bonusAdReward);
+    leave(pendingLevel.current);
+  }
+
+  function skipBonus() {
+    if (bonusHandled.current) return;
+    bonusHandled.current = true;
+    setBonusCountdown(null);
+    leave(pendingLevel.current);
+  }
+
+  function leave(next: number) {
     playLevel(next);
     // After a reload (web keeps the /level-complete URL) or a deep link there is nothing to go
     // back to, so land on the Play tab instead.
@@ -322,12 +366,37 @@ export default function LevelCompleteScreen() {
         </ScrollView>
       </SafeAreaView>
       <Confetti count={isCompact ? 36 : 50} />
+      {bonusCountdown !== null && (
+        <View style={styles.bonusScrim}>
+          <Panel variant="purple" radius={28} style={[styles.bonusCard, { marginHorizontal: gutter }]}>
+            <MaterialIcons name="card-giftcard" size={44} color={colors.goldPale} />
+            <Text style={styles.bonusTitle}>Bonus gift!</Text>
+            <Text style={styles.bonusText}>
+              Watch a short ad and get <Text style={styles.bonusCoins}>+{ECONOMY.bonusAdReward} coins</Text>.
+            </Text>
+            <Text style={styles.bonusCountdown}>Ad starts in {bonusCountdown}…</Text>
+            <GradientButton label="Watch now" icon="play-arrow" variant="gold" fullWidth height={52} onPress={watchBonus} />
+            <Pressable onPress={skipBonus} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.bonusSkip}>No thanks</Text>
+            </Pressable>
+          </Panel>
+        </View>
+      )}
     </View>
   );
 }
 
+const BONUS_INTRO_SECONDS = 5;
+
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.scrim },
+  bonusScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(10,4,24,0.75)', justifyContent: 'center' },
+  bonusCard: { padding: 20, gap: 10, alignItems: 'center', maxWidth: 380, alignSelf: 'center', width: '100%' },
+  bonusTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 26, ...artTextShadow },
+  bonusText: { color: '#E9D5FF', fontFamily: fontFamily.semiBold, fontSize: 15, textAlign: 'center' },
+  bonusCoins: { color: colors.goldPale, fontFamily: fontFamily.black },
+  bonusCountdown: { color: '#FFFFFF', fontFamily: fontFamily.bold, fontSize: 13, marginBottom: 4 },
+  bonusSkip: { color: '#FFFFFF', fontFamily: fontFamily.bold, fontSize: 14, textDecorationLine: 'underline', marginTop: 4 },
   centerWrap: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg },
   sheetWrap: { width: '100%', maxWidth: 480 },
   sheet: { width: '100%', maxWidth: 480, padding: 22, alignItems: 'center' },

@@ -3,8 +3,14 @@
  * implementation is ads.native.ts, which Metro picks instead of this file on device.
  */
 
+export const BANNER_UNIT = '';
+
 export function initAds() {
   return Promise.resolve();
+}
+
+export function useCanRequestAds() {
+  return false;
 }
 
 export function useRewardedReady() {
@@ -17,4 +23,16 @@ export function showRewarded(): Promise<boolean> {
 
 export function maybeShowInterstitial(_clearedLevel: number): Promise<void> {
   return Promise.resolve();
+}
+
+export function bonusAdReady() {
+  return false;
+}
+
+export function showBonusAd(): Promise<boolean> {
+  return Promise.resolve(false);
+}
+
+export function holdAppOpen() {
+  return () => {};
 }

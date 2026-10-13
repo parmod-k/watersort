@@ -23,6 +23,7 @@ import {
   type PurchaseAndroid,
   type PurchaseIOS,
 } from 'expo-iap';
+import { holdAppOpen } from './ads';
 import { applyPurchase, getProgress, notePendingPurchase, setEntitlements } from './progress';
 import {
   IN_APP_SKUS,
@@ -277,7 +278,9 @@ export async function buy(productId: string): Promise<BuyResult> {
   if (waiting) return { outcome: 'error', message: 'Another purchase is in progress.' };
   // Ties the purchase to this player (iOS needs a UUID, which the player ID is).
   const playerId = getProgress().playerId;
-  const result = new Promise<BuyResult>((resolve) => (waiting = { productId, resolve }));
+  // The purchase sheet leaves the app on Android; returning from it must not trigger an app-open ad.
+  const release = holdAppOpen();
+  const result = new Promise<BuyResult>((resolve) => (waiting = { productId, resolve })).finally(release);
   update({ buying: productId });
   try {
     if (product.type === 'subs') {
@@ -324,6 +327,7 @@ export async function restorePurchases(): Promise<RestoreResult> {
     if (!ready()) return { ok: false, message: 'The store is not available. Check your connection and try again.' };
   }
   update({ restoring: true });
+  const release = holdAppOpen();
   try {
     // iOS: syncs with the App Store (may ask for the Apple ID password). Android: refreshes the cache.
     await storeRestorePurchases();
@@ -336,13 +340,27 @@ export async function restorePurchases(): Promise<RestoreResult> {
     return { ok: false, message: getUserFriendlyErrorMessage(e as ExpoPurchaseError) };
   } finally {
     update({ restoring: false });
+    release();
   }
 }
 
 /** Opens the App Store / Google Play page where the player cancels or changes their subscription. */
 export async function manageSubscriptions(productId?: string) {
-  await deepLinkToSubscriptions({
-    skuAndroid: productId ?? null,
-    packageNameAndroid: Platform.OS === 'android' ? (Constants.expoConfig?.android?.package ?? null) : null,
+  // No app-open ad when the player comes back from the store's subscription page.
+  const release = holdAppOpen();
+  const sub = AppState.addEventListener('change', (s) => {
+    if (s !== 'active') return;
+    sub.remove();
+    release();
   });
+  try {
+    await deepLinkToSubscriptions({
+      skuAndroid: productId ?? null,
+      packageNameAndroid: Platform.OS === 'android' ? (Constants.expoConfig?.android?.package ?? null) : null,
+    });
+  } catch (e) {
+    sub.remove();
+    release();
+    throw e;
+  }
 }

@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenBackground from '../../components/ui/ScreenBackground';
+import AdBanner from '../../components/AdBanner';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -27,6 +28,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="shop" />
           <Tabs.Screen name="profile" />
         </Tabs>
+        <AdBanner />
       </View>
     </ScreenBackground>
   );

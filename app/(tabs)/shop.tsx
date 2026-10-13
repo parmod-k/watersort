@@ -58,11 +58,11 @@ export default function ShopScreen() {
   }
 
   async function buyRemoveAds() {
-    report(await buy(REMOVE_ADS), 'Ads between levels are gone for good. Restore it on any device with the same store account.');
+    report(await buy(REMOVE_ADS), 'Forced ads are gone for good. Restore it on any device with the same store account.');
   }
 
   async function buyVip(id: string) {
-    report(await buy(id), `VIP is active: no ads between levels and ${VIP.dailyCoins} free coins every day.`);
+    report(await buy(id), `VIP is active: no forced ads and ${VIP.dailyCoins} free coins every day.`);
   }
 
   async function restore() {
@@ -140,7 +140,7 @@ export default function ShopScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.offerTitle}>Remove Ads</Text>
               <Text style={styles.offerText}>
-                One purchase, forever: no ads between levels. Watching an ad for free coins stays optional.
+                One purchase, forever: no banners, no ads between levels or when you open the game. Watching an ad for free coins stays optional.
               </Text>
             </View>
           </View>
@@ -167,7 +167,7 @@ export default function ShopScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.offerTitle, styles.inkText]}>VIP Pass</Text>
               <Text style={[styles.offerText, styles.inkSoftText]}>
-                No ads between levels and {VIP.dailyCoins} free coins every day while it's active.
+                No banner or between-level ads, plus {VIP.dailyCoins} free coins every day while it's active.
               </Text>
             </View>
           </View>
