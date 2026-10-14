@@ -19,26 +19,26 @@ import { isAdFree } from './wallet';
  * never show real ads to yourself, it can get the AdMob account suspended.
  */
 const PROD_UNITS = {
-  rewarded: Platform.select({ ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_REWARDED', default: 'ca-app-pub-2482030283049144/5747921124' }),
+  rewarded: Platform.select({ ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_REWARDED', default: 'ca-app-pub-5371388954072964/9068735955' }),
   interstitial: Platform.select({
     ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_INTERSTITIAL',
-    default: 'ca-app-pub-2482030283049144/7388305859',
+    default: 'ca-app-pub-5371388954072964/1828540189',
   }),
-  banner: Platform.select({ ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_BANNER', default: 'ca-app-pub-2482030283049144/6744563167' }),
+  banner: Platform.select({ ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_BANNER', default: 'ca-app-pub-5371388954072964/1956532691' }),
   rewardedInterstitial: Platform.select({
     ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_REWARDED_INTERSTITIAL',
-    default: 'ca-app-pub-2482030283049144/5554595413',
+    default: 'ca-app-pub-5371388954072964/5350736812',
   }),
-  appOpen: Platform.select({ ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_APP_OPEN', default: 'ca-app-pub-2482030283049144/9302268733' }),
+  appOpen: Platform.select({ ios: 'ca-app-pub-XXXXXXXXXXXXXXXX/IOS_APP_OPEN', default: 'ca-app-pub-5371388954072964/3669244626' }),
 };
 const UNITS = __DEV__
   ? {
-      rewarded: TestIds.REWARDED,
-      interstitial: TestIds.INTERSTITIAL,
-      banner: TestIds.ADAPTIVE_BANNER,
-      rewardedInterstitial: TestIds.REWARDED_INTERSTITIAL,
-      appOpen: TestIds.APP_OPEN,
-    }
+    rewarded: TestIds.REWARDED,
+    interstitial: TestIds.INTERSTITIAL,
+    banner: TestIds.ADAPTIVE_BANNER,
+    rewardedInterstitial: TestIds.REWARDED_INTERSTITIAL,
+    appOpen: TestIds.APP_OPEN,
+  }
   : PROD_UNITS;
 
 export const BANNER_UNIT = UNITS.banner;

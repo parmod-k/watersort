@@ -193,15 +193,15 @@ The code is in `game/ads.native.ts` (ad unit IDs, frequency, ad-free checks) and
 Frequency settings are under `ADS` in `game/economy.ts`. Debug builds always use Google's test ads.
 Release builds use the IDs below.
 
-AdMob app ID (Android, in `app.json`): `ca-app-pub-2482030283049144~3906646830`
+AdMob app ID (Android, in `app.json`): `ca-app-pub-5371388954072964~8691216029`
 
 | Format | Android ad unit ID | Where and when |
 | --- | --- | --- |
-| Rewarded | `ca-app-pub-2482030283049144/5747921124` | Player's choice: double level coins, or coins when short for a booster |
-| Interstitial | `ca-app-pub-2482030283049144/7388305859` | After "Next Level" every 3rd level, from level 6 |
-| Banner (anchored adaptive) | `ca-app-pub-2482030283049144/6744563167` | Bottom of Stages, Themes, Rank and Profile. Never on the Play board or in the Shop |
-| Rewarded interstitial | `ca-app-pub-2482030283049144/5554595413` | "Bonus gift" (+75 coins) every 5th level from level 10, on levels without an interstitial. A 5-second intro with "No thanks" comes first, as AdMob requires |
-| App open | `ca-app-pub-2482030283049144/9302268733` | When returning to the game after 30 s or more away, at most every 4 minutes, from level 6. Never after a purchase, Restore or Manage subscription |
+| Rewarded | `ca-app-pub-5371388954072964/9068735955` | Player's choice: double level coins, or coins when short for a booster |
+| Interstitial | `ca-app-pub-5371388954072964/1828540189` | After "Next Level" every 3rd level, from level 6 |
+| Banner (anchored adaptive) | `ca-app-pub-5371388954072964/1956532691` | Bottom of Stages, Themes, Rank and Profile. Never on the Play board or in the Shop |
+| Rewarded interstitial | `ca-app-pub-5371388954072964/5350736812` | "Bonus gift" (+75 coins) every 5th level from level 10, on levels without an interstitial. A 5-second intro with "No thanks" comes first, as AdMob requires |
+| App open | `ca-app-pub-5371388954072964/3669244626` | When returning to the game after 30 s or more away, at most every 4 minutes, from level 6. Never after a purchase, Restore or Manage subscription |
 
 Remove Ads / VIP turn off everything except rewarded ads. The iOS unit IDs are still placeholders
 (`ca-app-pub-XXXXXXXXXXXXXXXX/IOS_…` in `game/ads.native.ts`, and Google's test `iosAppId` in `app.json`),
