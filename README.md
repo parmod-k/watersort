@@ -206,3 +206,6 @@ AdMob app ID (Android, in `app.json`): `ca-app-pub-2482030283049144~3906646830`
 Remove Ads / VIP turn off everything except rewarded ads. The iOS unit IDs are still placeholders
 (`ca-app-pub-XXXXXXXXXXXXXXXX/IOS_…` in `game/ads.native.ts`, and Google's test `iosAppId` in `app.json`),
 so iOS release builds show no ads until an iOS app is added in AdMob.
+
+## Rewarded Amount
+    100 coins
