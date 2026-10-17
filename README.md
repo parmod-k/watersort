@@ -217,3 +217,5 @@ so iOS release builds show no ads until an iOS app is added in AdMob.
   npx --yes eas-cli@latest whoami
   npx --yes eas-cli@latest project:info
   npx --yes eas-cli@latest build --platform android --profile production
+
+  npx eas-cli build --platform android
