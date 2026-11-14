@@ -13,6 +13,14 @@ type Levels = { volume?: number; rate?: number };
 
 const players: Partial<Record<Sfx, AudioPlayer>> = {};
 const ramps: Partial<Record<Sfx, ReturnType<typeof setInterval>>> = {};
+// `playbackRate` is read-only on native players (assigning it throws), and `setPlaybackRate` applies
+// asynchronously, so the last requested rate is tracked here for ramps to start from.
+const rates: Partial<Record<Sfx, number>> = {};
+
+function setRate(name: Sfx, p: AudioPlayer, rate: number) {
+  rates[name] = rate;
+  p.setPlaybackRate(rate);
+}
 let modeSet = false;
 
 function player(name: Sfx) {
@@ -40,8 +48,10 @@ export function playSfx(name: Sfx, { volume = 1, rate = 1 }: Levels = {}) {
   try {
     clearInterval(ramps[name]);
     const p = player(name);
-    p.volume = volume;
-    p.playbackRate = rate;
+    try {
+      p.volume = volume;
+      setRate(name, p, rate);
+    } catch {}
     p.seekTo(0).catch(() => {});
     p.play();
   } catch {}
@@ -53,7 +63,7 @@ export function rampSfx(name: Sfx, to: Levels, ms: number, onDone?: () => void) 
   if (!p) return;
   clearInterval(ramps[name]);
   const fromVolume = p.volume;
-  const fromRate = p.playbackRate;
+  const fromRate = rates[name] ?? 1;
   const steps = Math.max(1, Math.round(ms / 30));
   let i = 0;
   ramps[name] = setInterval(() => {
@@ -61,7 +71,7 @@ export function rampSfx(name: Sfx, to: Levels, ms: number, onDone?: () => void) 
     const k = i / steps;
     try {
       if (to.volume !== undefined) p.volume = fromVolume + (to.volume - fromVolume) * k;
-      if (to.rate !== undefined) p.playbackRate = fromRate + (to.rate - fromRate) * k;
+      if (to.rate !== undefined) setRate(name, p, fromRate + (to.rate - fromRate) * k);
     } catch {}
     if (i >= steps) {
       clearInterval(ramps[name]);
