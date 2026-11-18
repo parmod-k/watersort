@@ -36,3 +36,11 @@ export function showBonusAd(): Promise<boolean> {
 export function holdAppOpen() {
   return () => {};
 }
+
+export function usePrivacyOptionsRequired() {
+  return false;
+}
+
+export function showPrivacyOptions(): Promise<void> {
+  return Promise.resolve();
+}

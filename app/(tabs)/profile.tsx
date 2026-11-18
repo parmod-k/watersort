@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -8,6 +8,7 @@ import Panel from '../../components/ui/Panel';
 import GradientButton from '../../components/ui/GradientButton';
 import { artTextShadow, chassis, colors, fontFamily, spacing } from '../../theme/tokens';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
+import { showPrivacyOptions, usePrivacyOptionsRequired } from '../../game/ads';
 import { useProgress } from '../../game/progress';
 import { statsFor } from '../../game/scoring';
 import { productName } from '../../game/shop';
@@ -61,6 +62,11 @@ export default function ProfileScreen() {
   const progress = useProgress();
   const { gutter } = useResponsive();
   const [showAllCoins, setShowAllCoins] = useState(false);
+  const privacyRequired = usePrivacyOptionsRequired();
+  const openPrivacy = () =>
+    showPrivacyOptions().catch(() =>
+      Alert.alert('Privacy settings', "Couldn't open privacy settings. Check your connection and try again."),
+    );
   const stats = statsFor(progress.records, progress.unlocked);
   const { entitlements, totals } = progress;
   const vip = subscriptionActive(entitlements);
@@ -125,6 +131,15 @@ export default function ProfileScreen() {
               </Pressable>
             )}
           </View>
+          {privacyRequired && (
+            <View style={styles.adRow}>
+              <MaterialIcons name="privacy-tip" size={16} color={colors.inkSoft} />
+              <Text style={styles.adText}>Privacy settings</Text>
+              <Pressable onPress={openPrivacy} hitSlop={8} accessibilityRole="button" accessibilityLabel="Manage privacy settings">
+                <Text style={styles.link}>Manage</Text>
+              </Pressable>
+            </View>
+          )}
         </Panel>
 
         <Text style={styles.sectionTitle}>Purchase History</Text>

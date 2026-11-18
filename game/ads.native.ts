@@ -1,8 +1,9 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 import mobileAds, {
   AdEventType,
   AdsConsent,
+  AdsConsentPrivacyOptionsRequirementStatus,
   AppOpenAd,
   InterstitialAd,
   RewardedAd,
@@ -293,4 +294,31 @@ export function showBonusAd(): Promise<boolean> {
   bonusReady = false;
   notify();
   return present(ad, loadBonus);
+}
+
+/**
+ * True when Google requires a way for the player to change their consent (e.g. EEA, UK and
+ * Switzerland). Checked once initAds() has gathered consent, because the status is only known then.
+ */
+export function usePrivacyOptionsRequired() {
+  const [required, setRequired] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    initAds()
+      .catch(() => {})
+      .then(() => AdsConsent.getConsentInfo())
+      .then((info) => {
+        if (alive) setRequired(info.privacyOptionsRequirementStatus === AdsConsentPrivacyOptionsRequirementStatus.REQUIRED);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return required;
+}
+
+/** Reopens Google's consent form so the player can review or change their ad choices. */
+export async function showPrivacyOptions(): Promise<void> {
+  await AdsConsent.showPrivacyOptionsForm();
 }
