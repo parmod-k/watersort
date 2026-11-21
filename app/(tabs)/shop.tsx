@@ -11,6 +11,7 @@ import { buy, manageSubscriptions, restorePurchases, useBilling } from '../../ga
 import { claimVipCoins, useProgress } from '../../game/progress';
 import { COIN_PACKS, productName, REMOVE_ADS, VIP, VIP_PLANS, type BuyResult } from '../../game/shop';
 import { subscriptionActive } from '../../game/wallet';
+import { openLegal, PRIVACY_POLICY_URL, TERMS_URL } from '../../game/legal';
 import { formatCountdown, msUntilReset, today, useNow } from '../../game/daily';
 
 function notify(title: string, message: string) {
@@ -220,7 +221,14 @@ export default function ShopScreen() {
           {!vipActive && (
             <Text style={styles.finePrint}>
               Renews automatically until cancelled. Cancel any time in your {Platform.OS === 'ios' ? 'App Store' : 'Google Play'}{' '}
-              subscription settings.
+              subscription settings.{' '}
+              <Text style={styles.fineLink} onPress={() => openLegal(TERMS_URL)} accessibilityRole="link">
+                Terms
+              </Text>
+              {' · '}
+              <Text style={styles.fineLink} onPress={() => openLegal(PRIVACY_POLICY_URL)} accessibilityRole="link">
+                Privacy Policy
+              </Text>
             </Text>
           )}
         </Panel>
@@ -302,6 +310,7 @@ const styles = StyleSheet.create({
   planRow: { flexDirection: 'row', gap: 10 },
   planLabel: { color: colors.inkSoft, fontFamily: fontFamily.extraBold, fontSize: 12, textAlign: 'center' },
   finePrint: { color: colors.inkMuted, fontFamily: fontFamily.medium, fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  fineLink: { color: colors.purple, fontFamily: fontFamily.bold, textDecorationLine: 'underline' },
 
   restoreCard: { padding: 14, gap: 10 },
   restoreTitle: { color: '#FFFFFF', fontFamily: fontFamily.black, fontSize: 16, ...artTextShadow },

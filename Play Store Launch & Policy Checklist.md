@@ -1,6 +1,6 @@
 # Play Store Launch & Policy Checklist
 
-Nov 21, 2026 · @Parmod.k
+Updated: Nov 21, 2026
 
 ## Is checklist ko kaise use karein
 
@@ -18,7 +18,7 @@ Play Console ke **App content** page ke saare declarations bhare bina app review
 | --- | --- | --- |
 | Target SDK | Naye apps aur updates ko latest-1 se naya API level target karna hoga | compileSdk / targetSdk 36 (Expo SDK 57 default) |
 | Permissions | Sirf wahi permission jo feature ko chahiye; extra permission = rejection risk | Sirf `MODIFY_AUDIO_SETTINGS` (app.json `android.permissions`); expo-audio mein mic off |
-| Privacy policy | Public URL, app ke andar bhi link, ads/IAP/data collection likha ho | Store listing mein. App ke andar link abhi nahi hai: Profile screen par jodna baaki |
+| Privacy policy | Public URL, app ke andar bhi link, ads/IAP/data collection likha ho | [Privacy policy](https://kiratitechsolutions.github.io/watersort-privacy-policy/) + [Terms](https://kiratitechsolutions.github.io/watersort-terms-of-service/): store listing, Profile screen (Legal row) aur Shop subscription text mein; URLs `game/legal.ts` mein |
 | Ads declaration | App content > Ads: "Haan, app mein ads hain" | Yes (AdMob) |
 | App access | Login ho to test account dena | Login nahi hai: "All functionality available" |
 | Store listing | Screenshots asli gameplay ke, title mein "best/#1/free" jaise words nahi, keyword stuffing nahi | — |
@@ -27,7 +27,7 @@ Play Console ke **App content** page ke saare declarations bhare bina app review
 | Build format | AAB zaroori | eas.json `buildType: app-bundle`, `autoIncrement` |
 
 - [ ] App content ke saare declarations complete (Ads, App access, Content rating, Target audience, Data safety, Government app, Financial features, Health)
-- [ ] Privacy policy URL live hai aur app ke andar khulta hai
+- [ ] Privacy policy URL live hai aur app ke andar khulta hai (naye app: nayi GitHub Pages repo `<app>-privacy-policy`, `game/legal.ts` mein URL)
 - [ ] Merged AndroidManifest mein koi anchaahi permission nahi (libraries bhi permission jodti hain: `AD_ID`, `BILLING` theek hain)
 - [ ] Closed testing: naye personal developer account par 12 testers x 14 din ki shart (organization account par lagu nahi)
 
@@ -81,7 +81,7 @@ Ads tabhi safe hain jab consent pehle aaye, ad hamesha band kiya ja sake, aur ad
 - "Ad dekho to aage badho" jahan ad dekhna zaroori ho (rewarded hamesha optional).
 - Bachchon ke app mein personalized ads (dekhein section 5).
 
-* [ ] `app-ads.txt` developer website ke root par, AdMob mein verified
+* [ ] `app-ads.txt` developer website ke root par, AdMob mein verified ([kiratitechsolutions.github.io/app-ads.txt](https://kiratitechsolutions.github.io/app-ads.txt); Play Console ki developer website bhi `https://kiratitechsolutions.github.io` honi chahiye)
 * [ ] Production ad unit IDs sirf release build mein; test device AdMob mein add
 * [ ] Remove Ads / VIP lene par interstitial, banner, app-open band ho jaate hain
 * [ ] Ad load fail hone par retry 30–60 s baad, lagatar request nahi
@@ -183,3 +183,12 @@ Release ka order yahi rakhein: internal testing, phir closed testing, phir produ
 | Subscription terms saaf nahi | Buy button ke paas price, period, cancel |
 | Store listing mein misleading screenshots / keywords | Asli gameplay screenshots |
 | Policy email ignore karna (jaise Age Signals) | Play Console Inbox har release se pehle |
+
+## Links (WaterSortApp)
+
+| Link | URL | Kahan use |
+| --- | --- | --- |
+| Privacy policy | https://kiratitechsolutions.github.io/watersort-privacy-policy/ | Play Console store listing, Profile, Shop |
+| Terms of service | https://kiratitechsolutions.github.io/watersort-terms-of-service/ | Profile, Shop (subscription ke paas) |
+| app-ads.txt | https://kiratitechsolutions.github.io/app-ads.txt | AdMob verification (developer website ke root par) |
+| robots.txt | https://kiratitechsolutions.github.io/robots.txt | Crawlers ko app-ads.txt padhne dena (block na kare) |

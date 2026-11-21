@@ -9,6 +9,7 @@ import GradientButton from '../../components/ui/GradientButton';
 import { artTextShadow, chassis, colors, fontFamily, spacing } from '../../theme/tokens';
 import { contentMaxWidth, useResponsive } from '../../theme/responsive';
 import { showPrivacyOptions, usePrivacyOptionsRequired } from '../../game/ads';
+import { openLegal, PRIVACY_POLICY_URL, TERMS_URL } from '../../game/legal';
 import { useProgress } from '../../game/progress';
 import { statsFor } from '../../game/scoring';
 import { productName } from '../../game/shop';
@@ -140,6 +141,16 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
           )}
+          <View style={styles.adRow}>
+            <MaterialIcons name="gavel" size={16} color={colors.inkSoft} />
+            <Text style={styles.adText}>Legal</Text>
+            <Pressable onPress={() => openLegal(PRIVACY_POLICY_URL)} hitSlop={8} accessibilityRole="link">
+              <Text style={styles.link}>Privacy Policy</Text>
+            </Pressable>
+            <Pressable onPress={() => openLegal(TERMS_URL)} hitSlop={8} accessibilityRole="link">
+              <Text style={styles.link}>Terms</Text>
+            </Pressable>
+          </View>
         </Panel>
 
         <Text style={styles.sectionTitle}>Purchase History</Text>
