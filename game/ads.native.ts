@@ -2,6 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 import mobileAds, {
   AdEventType,
+  MaxAdContentRating,
   AdsConsent,
   AdsConsentPrivacyOptionsRequirementStatus,
   AppOpenAd,
@@ -11,6 +12,8 @@ import mobileAds, {
   RewardedInterstitialAd,
   TestIds,
 } from 'react-native-google-mobile-ads';
+import { checkAgeSignals } from '../modules/age-signals';
+import { adSettingsFor, ageBandFrom, type AgeBand } from './ageSignals';
 import { ADS, interstitialDue } from './economy';
 import { getProgress } from './progress';
 import { isAdFree } from './wallet';
@@ -218,21 +221,42 @@ function watchAppState() {
   });
 }
 
+/** Never hold up ads for long if Play is slow or offline. */
+const AGE_SIGNALS_TIMEOUT_MS = 15_000;
+
 /**
- * Asks for consent where the law requires it (Google's UMP form, e.g. in the EEA/UK), then starts
- * the SDK and preloads one ad of each kind. Safe to call more than once.
+ * Google Play Age Signals (Android): where a law makes age sharing mandatory (Texas, Brazil,
+ * California from Jan 2027, ...) Play tells us the player's age range. Outside those regions we
+ * don't show Play's age prompt. Any failure means "unknown", i.e. the normal setup.
+ */
+async function loadAgeBand(): Promise<AgeBand> {
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), AGE_SIGNALS_TIMEOUT_MS));
+  const signals = await Promise.race([checkAgeSignals(false).catch(() => null), timeout]);
+  return ageBandFrom(signals);
+}
+
+/**
+ * Checks the player's age band, asks for consent where the law requires it (Google's UMP form,
+ * e.g. in the EEA/UK), then starts the SDK and preloads one ad of each kind. Minors get
+ * child-safe ad settings. Safe to call more than once.
  */
 let started: Promise<void> | null = null;
 export function initAds() {
   started ??= (async () => {
+    const age = adSettingsFor(await loadAgeBand());
     try {
-      const consent = await AdsConsent.gatherConsent();
+      const consent = await AdsConsent.gatherConsent(age.tagForUnderAgeOfConsent ? { tagForUnderAgeOfConsent: true } : undefined);
       canRequestAds = consent.canRequestAds;
     } catch {
       // Consent form failed to load (e.g. offline). Ads may still be allowed from a previous session.
       canRequestAds = (await AdsConsent.getConsentInfo().catch(() => null))?.canRequestAds ?? false;
     }
     if (!canRequestAds) return;
+    if (age.maxAdContentRating) {
+      await mobileAds()
+        .setRequestConfiguration({ ...age, maxAdContentRating: MaxAdContentRating[age.maxAdContentRating] })
+        .catch(() => {});
+    }
     await mobileAds().initialize();
     notify();
     loadRewarded();

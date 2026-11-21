@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.watersortapp'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.agesignals"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // Google Play Age Signals API (beta). Release notes: developer.android.com/google/play/age-signals
+  implementation 'com.google.android.play:age-signals:0.0.6'
+}
