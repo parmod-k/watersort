@@ -42,3 +42,6 @@ yarn-error.*
 
 # backend secrets
 server/.env
+
+# native build output of local Expo modules
+/modules/*/android/build/
